@@ -1,7 +1,7 @@
 import sys
 import os
 from pathlib import Path
-from .extract_dataset import extract_dataset
+from .dataset_extract import extract_dataset
 
 
 def check_dataset_exists(progress_callback=None) -> tuple[bool, str]:
@@ -13,26 +13,21 @@ def check_dataset_exists(progress_callback=None) -> tuple[bool, str]:
     Returns:
         Tuple of (success, message)
     """
-    # Get project root (two levels up from scripts folder)
     script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent.parent  # Going up one more level to reach project root
+    project_root = script_dir.parent.parent
 
     # Use absolute paths to avoid any path resolution issues
     folder_path = project_root / "data" / "smart-meters-in-london"
     zip_path = project_root / "data" / "smart-meters-in-london.zip"
 
-    # Report start of check with absolute paths
     if progress_callback:
         progress_callback(0.0, f"Checking for dataset at {folder_path}...")
 
-    # Check if dataset folder exists
     if folder_path.exists() and folder_path.is_dir():
-        # Dataset already extracted
         if progress_callback:
             progress_callback(1.0, "Dataset already exists in folder")
         return True, "Dataset folder found"
 
-    # Report looking for ZIP with absolute path
     if progress_callback:
         progress_callback(0.1, f"Looking for ZIP file at {zip_path}...")
 
@@ -50,7 +45,7 @@ def check_dataset_exists(progress_callback=None) -> tuple[bool, str]:
                 return False, "ZIP file found but cannot be read due to permissions"
             
             # Extract the dataset with progress reporting
-            extract_dataset(str(zip_path.resolve()), silent=False, progress_callback=progress_callback)
+            extract_dataset(Path(str(zip_path.resolve())), silent=False, progress_callback=progress_callback)
             
             # Verify extraction was successful
             if folder_path.exists() and folder_path.is_dir():
