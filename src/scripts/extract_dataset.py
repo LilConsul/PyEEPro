@@ -1,4 +1,5 @@
 import sys
+import os
 import zipfile
 import time
 from pathlib import Path
@@ -10,95 +11,140 @@ def extract_dataset(
     silent=False,
     progress_callback: Optional[Callable[[float, str], None]] = None
 ) -> None:
+    """Extract the dataset from a zip file with progress reporting.
+    
+    Args:
+        dataset_zip_path: Path to the dataset zip file
+        silent: If True, suppress output to console
+        progress_callback: Function to report progress (takes progress percentage and status message)
+    """
     try:
+        # Convert to Path object and resolve to absolute path
         if isinstance(dataset_zip_path, str):
-            dataset_zip_path = Path(dataset_zip_path)
+            dataset_zip_path = Path(dataset_zip_path).resolve()
+        else:
+            dataset_zip_path = dataset_zip_path.resolve()
 
         output_dir = dataset_zip_path.parent / dataset_zip_path.stem
 
-        if not dataset_zip_path.is_file():
+        # Extra validation and checks
+        if not dataset_zip_path.exists():
+            error_msg = f"Dataset zip file does not exist at {dataset_zip_path}"
             if not silent:
-                print(
-                    f"Dataset zip file {dataset_zip_path} does not exist.",
-                    file=sys.stderr,
-                )
+                print(error_msg, file=sys.stderr)
+            if progress_callback:
+                progress_callback(0.0, error_msg)
+            return
+            
+        if not dataset_zip_path.is_file():
+            error_msg = f"Path exists but is not a file: {dataset_zip_path}"
+            if not silent:
+                print(error_msg, file=sys.stderr)
+            if progress_callback:
+                progress_callback(0.0, error_msg)
             return
 
+        # Create output directory
         output_dir.mkdir(exist_ok=True, parents=True)
 
         if not silent:
             print(f"Extracting dataset from {dataset_zip_path} to {output_dir}...")
 
-        # Report initial progress
+        # Initial progress update
         if progress_callback:
-            progress_callback(0.0, f"Starting extraction of {dataset_zip_path.name}...")
-            # Small delay to allow UI to update
-            time.sleep(0.1)
+            progress_callback(0.25, f"Starting extraction from {dataset_zip_path.name}...")
         
-        # Extract the dataset with progress reporting
+        # Verify file is a valid ZIP
+        if not zipfile.is_zipfile(dataset_zip_path):
+            error_msg = f"File is not a valid ZIP archive: {dataset_zip_path}"
+            if progress_callback:
+                progress_callback(0.0, error_msg)
+            if not silent:
+                print(error_msg, file=sys.stderr)
+            return
+        
+        # Extract with progress reporting
         try:
             with zipfile.ZipFile(dataset_zip_path, "r") as zip_ref:
-                # Get total files and size for progress calculation
-                file_list = zip_ref.infolist()
-                total_files = len(file_list)
-                total_size = sum(file.file_size for file in file_list)
+                # Get file list for progress tracking
+                files = zip_ref.infolist()
+                total_files = len(files)
+                
+                if total_files == 0:
+                    if progress_callback:
+                        progress_callback(0.0, f"ZIP file is empty: {dataset_zip_path.name}")
+                    return
+                
+                total_size = sum(file.file_size for file in files)
+                
+                if progress_callback:
+                    progress_callback(0.3, f"Found {total_files} files to extract ({total_size/1024/1024:.1f} MB total)")
+                
+                # Extract files with progress updates
                 extracted_files = 0
                 extracted_size = 0
                 
-                # Report number of files to extract
-                if progress_callback:
-                    progress_callback(0.0, f"Found {total_files} files to extract (total size: {total_size/1024/1024:.2f} MB)")
-                    # Small delay to allow UI to update
-                    time.sleep(0.1)
-                
-                for i, file in enumerate(file_list):
-                    zip_ref.extract(file, output_dir)
-                    extracted_files += 1
-                    extracted_size += file.file_size
-                    
-                    # Report progress if callback is provided - use either file count or size based progress
-                    if progress_callback and (i % 5 == 0 or i == total_files - 1):  # Update every 5 files to avoid too many UI updates
-                        # Use file size for more accurate progress percentage
-                        progress = min(extracted_size / total_size, 0.99) if total_size > 0 else extracted_files / total_files
-                        file_name = file.filename.split('/')[-1] if '/' in file.filename else file.filename
-                        status_text = f"Extracting: {file_name} ({extracted_files}/{total_files}, {extracted_size/1024/1024:.1f}/{total_size/1024/1024:.1f} MB)"
-                        progress_callback(progress, status_text)
-                    
-                    # Basic progress reporting to console if not silent
-                    if not silent and extracted_files % 20 == 0:  # Report every 20 files
-                        print(f"Progress: {extracted_files}/{total_files} files extracted ({extracted_size/1024/1024:.1f}/{total_size/1024/1024:.1f} MB)")
-            
-        except (zipfile.BadZipFile, zipfile.LargeZipFile) as e:
-            error_msg = f"ZIP file error: {e}"
+                for i, file in enumerate(files):
+                    try:
+                        # Extract file
+                        zip_ref.extract(file, output_dir)
+                        extracted_files += 1
+                        extracted_size += file.file_size
+                        
+                        # Calculate progress percentage (scale from 0.3 to 0.95)
+                        progress = 0.3 + 0.65 * ((i + 1) / total_files)
+                        
+                        # Update progress every few files to avoid UI slowdown
+                        if progress_callback and (i % 5 == 0 or i == total_files - 1):
+                            filename = file.filename.split('/')[-1] if '/' in file.filename else file.filename
+                            message = f"Extracting: {filename} ({extracted_files}/{total_files}, {extracted_size/1024/1024:.1f}/{total_size/1024/1024:.1f} MB)"
+                            progress_callback(progress, message)
+                        
+                        # Console logging
+                        if not silent and i % 20 == 0:
+                            print(f"Progress: {extracted_files}/{total_files} files extracted")
+                    except Exception as e:
+                        # Log the error but continue with other files
+                        print(f"Error extracting file {file.filename}: {e}", file=sys.stderr)
+                        if progress_callback:
+                            progress_callback(progress, f"Warning: Error extracting {file.filename}: {e}")
+                            time.sleep(0.5)  # Give time to read warning
+        
+        except zipfile.BadZipFile:
+            error_msg = f"Error: File is not a valid ZIP file or is corrupted: {dataset_zip_path}"
             if progress_callback:
-                progress_callback(0.0, f"Error: {error_msg}")
+                progress_callback(0.0, error_msg)
+            if not silent:
+                print(error_msg, file=sys.stderr)
             raise ValueError(error_msg)
 
-        if not silent:
-            print("Extraction complete.")
-            print(f"Dataset extracted to {output_dir}")
-            
         # Final progress update
         if progress_callback:
-            progress_callback(1.0, f"Extraction complete. Files saved to {output_dir.name}")
+            progress_callback(1.0, f"Extraction complete! {extracted_files} files extracted to {output_dir.name}")
 
-    except Exception as e:
         if not silent:
-            print(f"An error occurred while extracting the dataset: {e}", file=sys.stderr)
-        else:
-            sys.stderr.write(f"Error: {e}\n")
-            
-        # Report error in progress
+            print(f"Dataset extracted to {output_dir}")
+
+    except PermissionError as pe:
+        error_msg = f"Permission error: Unable to extract ZIP file. Check file permissions. {pe}"
+        if not silent:
+            print(error_msg, file=sys.stderr)
         if progress_callback:
-            progress_callback(0.0, f"Error during extraction: {str(e)}")
-            
-        raise  # Re-raise the exception to be handled by the caller
+            progress_callback(0.0, error_msg)
+        raise
+    except Exception as e:
+        error_msg = f"Error extracting dataset: {e}"
+        if not silent:
+            print(error_msg, file=sys.stderr)
+        if progress_callback:
+            progress_callback(0.0, error_msg)
+        raise
 
 
 if __name__ == "__main__":
-    zip_path = (
-        Path(sys.argv[1])
-        if len(sys.argv) > 1
-        else Path("./data/smart_meters_in_london.zip")
-    )
+    # When running directly, look for the ZIP file at project root
+    from pathlib import Path
+    script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent.parent  # Going up to the project root
+    zip_path = project_root / "data" / "smart-meters-in-london.zip"
     extract_dataset(zip_path)

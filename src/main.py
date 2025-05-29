@@ -1,5 +1,7 @@
 import time
+import os
 from datetime import datetime
+from pathlib import Path
 
 import streamlit as st
 from app.config import setup_page_custom_css
@@ -8,7 +10,6 @@ from app.tabs.eda import render_eda_tab
 from app.tabs.not_found import render_not_found_tab
 
 from data.dummy_data import generate_demo_data
-import threading
 
 
 def setup_app():
@@ -39,14 +40,47 @@ def initialize_session_state():
             "last_check_time": 0,
             "check_count": 0,
             "message": "",
-            "extraction_in_progress": False,
-            "extraction_progress": 0.0,
-            "extraction_status": "",
         }
+    
+    # Force check dataset on first run
+    if "first_run" not in st.session_state:
+        st.session_state.first_run = True
 
 
 def handle_dataset_availability():
     """Display appropriate messages based on dataset availability"""
+    from scripts.dataset_exists import check_dataset_exists
+    
+    # Force check on first run
+    if st.session_state.get("first_run", True):
+        st.session_state.first_run = False
+        
+        # Create an expandable section for details
+        with st.expander("Dataset Initialization", expanded=True):
+            st.info("Checking for dataset...")
+            progress_bar = st.progress(0.0)
+            status_text = st.empty()
+            
+            def update_progress(progress, message):
+                progress_bar.progress(progress)
+                status_text.text(message)
+            
+            # Check for dataset with progress reporting
+            dataset_available, message = check_dataset_exists(update_progress)
+            
+            # Update status
+            st.session_state.dataset_status["available"] = dataset_available
+            st.session_state.dataset_status["message"] = message
+            st.session_state.dataset_status["last_check_time"] = time.time()
+            st.session_state.dataset_status["check_count"] += 1
+            
+            # Display final status
+            if dataset_available:
+                st.success(f"Dataset check complete: {message}")
+            else:
+                st.error(f"Dataset check failed: {message}")
+    
+    # Continue with normal display
     dataset_status_container = st.empty()
     status = st.session_state.dataset_status
 
@@ -62,77 +96,58 @@ def handle_dataset_availability():
             else "Not checked yet"
         )
 
-        # Check if extraction is in progress
-        if status.get("extraction_in_progress", False):
-            with st.spinner("Extracting dataset..."):
-                progress_placeholder = st.empty()
-                progress_bar = progress_placeholder.progress(status["extraction_progress"])
-                status_text = st.empty().text(status["extraction_status"])
-                
-                # The progress will be updated by the callback
-                # Add a check button to force refresh if needed
-                if st.button("Force refresh"):
-                    st.rerun()
-                    
-                return False
+        # Get project root to show absolute paths - correct the path to point to data at project root
+        project_root = Path(__file__).resolve().parent.parent  # Go up two levels
+        data_dir = project_root / "data"
+        zip_path = data_dir / "smart-meters-in-london.zip"
 
         dataset_status_container.error(
             f"**Dataset Not Found**: {status['message']}\n\n"
             f"To fix this:\n"
             f"1. [Download](https://www.kaggle.com/datasets/jeanmidev/smart-meters-in-london) the Smart Meters in London dataset from Kaggle\n"
-            f"2. Place the ZIP file at **'data/smart-meters-in-london.zip'**\n\n"
+            f"2. Place the ZIP file at **{zip_path}**\n\n"
             f"*Status: Last check at {last_check} (Attempt #{status['check_count']})*",
             icon="❌",
         )
 
+        # Add data directory info
+        if data_dir.exists():
+            st.info(f"Data directory exists at {data_dir}")
+            files = list(data_dir.glob("*.zip"))
+            if files:
+                st.info(f"Found ZIP files in data directory: {', '.join(f.name for f in files)}")
+        else:
+            st.warning(f"Data directory doesn't exist at {data_dir}")
+            st.info(f"Creating data directory at {data_dir}")
+            data_dir.mkdir(exist_ok=True, parents=True)
+
         check_button = st.button("Check for dataset now")
         if check_button:
-            from scripts.dataset_exists import check_dataset_exists
-            
-            # Set extraction in progress first
-            st.session_state.dataset_status["extraction_in_progress"] = True
-            st.session_state.dataset_status["extraction_progress"] = 0.0
-            st.session_state.dataset_status["extraction_status"] = "Starting extraction..."
-            
-            # Create placeholder elements for progress display
-            progress_placeholder = st.empty()
-            progress_bar = progress_placeholder.progress(0.0)
+            # Create UI elements for progress display
+            progress_bar = st.progress(0.0)
             status_text = st.empty()
-            status_text.text("Preparing to extract dataset...")
             
-            # Define a callback that will be called from the extraction thread
-            def update_progress(progress, status_text_msg):
-                try:
-                    # Update session state
-                    st.session_state.dataset_status["extraction_progress"] = progress
-                    st.session_state.dataset_status["extraction_status"] = status_text_msg
-                    # Update UI elements
-                    progress_bar.progress(progress)
-                    status_text.text(status_text_msg)
-                except Exception as e:
-                    # In case of UI update errors
-                    print(f"Error updating UI: {e}")
+            # Define a simpler callback function for progress updates
+            def update_progress(progress, message):
+                progress_bar.progress(progress)
+                status_text.text(message)
             
-            # Start extraction in a separate thread to avoid blocking the UI
-            def extraction_thread():
-                try:
-                    dataset_available, message = check_dataset_exists(update_progress)
-                    
-                    # Update status
-                    st.session_state.dataset_status["available"] = dataset_available
-                    st.session_state.dataset_status["message"] = message
-                    st.session_state.dataset_status["last_check_time"] = time.time()
-                    st.session_state.dataset_status["check_count"] += 1
-                finally:
-                    st.session_state.dataset_status["extraction_in_progress"] = False
-                    st.rerun()
-
-            thread = threading.Thread(target=extraction_thread)
-            thread.daemon = True
-            thread.start()
+            # Check for dataset with progress reporting
+            dataset_available, message = check_dataset_exists(update_progress)
             
-            # Show a message while extraction starts
-            st.info("Starting extraction process, please wait...")
+            # Update status
+            status["available"] = dataset_available
+            status["message"] = message
+            status["last_check_time"] = time.time()
+            status["check_count"] += 1
+            
+            # Show final status before refresh
+            if dataset_available:
+                st.success(f"Dataset check complete: {message}")
+            else:
+                st.error(f"Dataset check failed: {message}")
+            
+            # Refresh page after extraction completes
             st.rerun()
 
         return False
