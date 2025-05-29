@@ -4,4 +4,10 @@ version = "0.1.0"
 description = "Python in Electical Engineering Project | Analization of 'Smart Meters in Londond' dataset"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "matplotlib>=3.10.3",
+    "plotly>=6.1.2",
+    "polars>=1.30.0",
+    "seaborn>=0.13.2",
+    "streamlit>=1.45.1",
+]
