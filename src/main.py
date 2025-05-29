@@ -1,8 +1,7 @@
 import streamlit as st
 from app.config import setup_page_custom_css
 from app.sidebar import render_sidebar
-from app.tabs.eda import render_eda_tab
-from app.tabs.not_found import render_not_found_tab
+from app.tabs import render_eda_tab, render_not_found_tab
 
 from data.dummy_data import generate_demo_data
 from scripts import handle_dataset_availability
