@@ -1,0 +1,7 @@
+[project]
+name = "PyEEPro"
+version = "0.1.0"
+description = "Python in Electical Engineering Project | Analization of 'Smart Meters in Londond' dataset"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
