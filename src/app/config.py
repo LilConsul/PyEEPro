@@ -1,4 +1,5 @@
 import streamlit as st
+from pathlib import Path
 
 
 def setup_page_custom_css():
@@ -40,3 +41,12 @@ def setup_page_custom_css():
     """,
         unsafe_allow_html=True,
     )
+
+
+class Settings:
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    DATA_DIR = BASE_DIR / "data" / "smart-meters-in-london"
+    DEBUG = True
+
+    
+setting = Settings()
