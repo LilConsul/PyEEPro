@@ -195,6 +195,13 @@ class DataStorage:
             if settings.DEBUG:
                 print("Cache directory does not exist")
 
+    @staticmethod
+    def get_cached_files() -> List[str]:
+        """Get a list of all cached files."""
+        if settings.CACHE_DIR.exists():
+            return [file.name for file in settings.CACHE_DIR.glob("*.csv")]
+        return []
+
     def get_hourly_patterns(
         self, years: List[int] | None = None, cols: List[str] | None = None
     ) -> pl.DataFrame:
@@ -228,6 +235,6 @@ storage = DataStorage()
 
 
 if __name__ == "__main__":
-    processor = DataProcessor()
-    processor.get_dyily_patterns()
+    storage = DataStorage()
+    print(storage.get_cached_files())
 
