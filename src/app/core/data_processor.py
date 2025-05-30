@@ -1,10 +1,11 @@
 import polars as pl
+from pathlib import Path
 from src.app.config import setting
 
 
 class DataProcessor:
     @staticmethod
-    def load_data_from_dir(directory):
+    def load_data_from_dir(directory: Path) -> pl.DataFrame:
         """
         Load all CSV files from a directory and concatenate them into a single Polars DataFrame.
 
@@ -14,84 +15,111 @@ class DataProcessor:
         Returns:
             Polars DataFrame containing all records from the CSV files.
         """
-        processed_data = []
-        for file in directory.glob("*.csv"):
+        csv_files = list(directory.glob("*.csv"))
+        if not csv_files:
+            raise ValueError(f"No CSV files found in {directory}")
+
+        # Use scan_csv for lazy loading and concat efficiently
+        lazy_frames = []
+        for file in csv_files:
             try:
-                data = pl.read_csv(file)
-                processed_data.append(data)
-                print(f"Loaded {file.name} with {len(data)} records")
+                lazy_df = pl.scan_csv(file)
+                lazy_frames.append(lazy_df)
+                if setting.DEBUG:
+                    print(f"Queued {file.name} for processing")
             except Exception as e:
-                print(f"Error loading {file.name}: {str(e)}")
-        return pl.concat(processed_data)
+                print(f"Error queuing {file.name}: {str(e)}")
+
+        if not lazy_frames:
+            raise ValueError("No valid CSV files could be loaded")
+
+        return pl.concat(lazy_frames).collect()
 
     @staticmethod
-    def convert_half_hourly_to_hourly(df):
+    def process_half_hourly_to_hourly_patterns(df: pl.DataFrame) -> pl.DataFrame:
         """
-        Convert half-hourly electricity consumption data to hourly data by summing adjacent columns.
+        Convert half-hourly data to hourly and perform comprehensive EDA on hourly consumption patterns.
 
         Args:
             df: Polars DataFrame with columns LCLid, day, hh_0, hh_1, ..., hh_47
 
         Returns:
-            Polars DataFrame with columns LCLid, day, h_0, h_1, ..., h_23
+            Polars DataFrame with hourly consumption statistics for EDA
         """
-        # Get the base columns to keep
-        base_cols = ["LCLid", "day"]
-
-        hourly_expressions = [
+        # Create hourly data by combining half-hour intervals
+        hourly_data_expressions = [
             (pl.col(f"hh_{hour * 2}") + pl.col(f"hh_{hour * 2 + 1}")).alias(f"h_{hour}")
             for hour in range(24)
         ]
-        result = df.select([*base_cols, *hourly_expressions])
+
+        # Select the hourly data columns
+        hourly_data = df.select(hourly_data_expressions)
+
+        # Compute comprehensive statistics for each hour
+        stats = []
+        for hour in range(24):
+            hour_col = f"h_{hour}"
+            hour_stats = {
+                "hour": hour,
+                "mean": hourly_data[hour_col].mean(),
+                "median": hourly_data[hour_col].median(),
+                "min": hourly_data[hour_col].min(),
+                "max": hourly_data[hour_col].max(),
+                "std_dev": hourly_data[hour_col].std(),
+                "q25": hourly_data[hour_col].quantile(0.25),
+                "q75": hourly_data[hour_col].quantile(0.75),
+            }
+            stats.append(hour_stats)
+
+        result = pl.DataFrame(stats)
+
+        # Calculate IQR
+        result = result.with_columns((pl.col("q75") - pl.col("q25")).alias("iqr"))
+
+        # Calculate percentage of daily consumption
+        total_daily_mean = result["mean"].sum()
+        result = result.with_columns(
+            (pl.col("mean") / total_daily_mean * 100).alias("percent_of_daily")
+        )
+
+        # Add hour classification based on consumption level
+        mean_values = result["mean"].to_list()
+        high_threshold = pl.Series(mean_values).quantile(0.66)
+        low_threshold = pl.Series(mean_values).quantile(0.33)
+
+        result = result.with_columns(
+            pl.when(pl.col("mean") >= high_threshold)
+            .then(pl.lit("Peak"))
+            .when(pl.col("mean") <= low_threshold)
+            .then(pl.lit("Off-Peak"))
+            .otherwise(pl.lit("Mid-Level"))
+            .alias("consumption_category")
+        )
+
+        # Sort by hour for better readability
+        result = result.sort("hour")
 
         return result
 
-    @staticmethod
-    def analyze_hourly_patterns(df):
+    def process(self) -> pl.DataFrame:
         """
-        Analyze hourly energy consumption patterns from hourly data.
-
-        Args:
-            df: Polars DataFrame with columns LCLid, day, h_0, h_1, ..., h_23
+        Process energy consumption data to extract hourly patterns.
 
         Returns:
-            Polars DataFrame with hourly average consumption across all houses/days
+            DataFrame with hourly consumption patterns
         """
-        # Calculate mean consumption for each hour across all days and LCLids
-        hourly_cols = [f"h_{hour}" for hour in range(24)]
+        data_path = setting.DATA_DIR / "hhblock_dataset" / "hhblock_dataset"
 
-        # Melt the dataframe to transform from wide to long format for analysis
-        long_df = df.unpivot(
-            index=["LCLid", "day"],
-            on=hourly_cols,
-            variable_name="hour",
-            value_name="consumption",
-        )
+        data = self.load_data_from_dir(data_path)
+        hourly_patterns = self.process_half_hourly_to_hourly_patterns(data)
 
-        # Extract the hour number from the column name
-        long_df = long_df.with_columns(
-            pl.col("hour").str.replace("h_", "").cast(pl.Int32).alias("hour_num")
-        )
+        if setting.DEBUG:
+            with pl.Config(tbl_rows=-1, tbl_cols=-1):
+                print(hourly_patterns)
 
-        # Aggregate to get average consumption by hour
-        hourly_pattern = (
-            long_df.group_by("hour_num")
-            .agg(pl.mean("consumption").alias("avg_consumption"))
-            .sort("hour_num")
-        )
-
-        return hourly_pattern
-
-    def process(self):
-        data = self.load_data_from_dir(
-            setting.DATA_DIR / "hhblock_dataset" / "hhblock_dataset"
-        )
-        hourly_data = self.convert_half_hourly_to_hourly(data)
-        hourly_patterns = self.analyze_hourly_patterns(hourly_data)
-        print(hourly_patterns)
         return hourly_patterns
 
 
 if __name__ == "__main__":
     processor = DataProcessor()
-    processor.process()
+    patterns = processor.process()
