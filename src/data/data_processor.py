@@ -90,9 +90,7 @@ class DataProcessor:
 
         return result
 
-    def get_hourly_patterns(
-        self, years: List[int] | None = None, cols: List[str] | None = None
-    ) -> pl.DataFrame:
+    def get_hourly_patterns(self) -> pl.DataFrame:
         """
         Process energy consumption data to extract hourly patterns.
 
@@ -109,6 +107,44 @@ class DataProcessor:
         return hourly_patterns
 
 
+class DataStorage:
+    def __init__(self):
+        self.processor = DataProcessor()
+        self.hourly_patterns = None
+
+    def get_hourly_patterns(
+        self, years: List[int] | None = None, cols: List[str] | None = None
+    ) -> pl.DataFrame:
+        """
+        Retrieve hourly patterns from the data processor.
+
+        Args:
+            years: Optional list of years to filter by.
+            cols: Optional list of columns to select.
+
+        Returns:
+            DataFrame with hourly patterns.
+        """
+        if self.hourly_patterns is None:
+            self.hourly_patterns = self.processor.get_hourly_patterns()
+            # Ensure year is cast to integer for proper comparison
+            self.hourly_patterns = self.hourly_patterns.with_columns(
+                pl.col("year").cast(pl.Int32)
+            )
+
+        result = self.hourly_patterns
+
+        if years is not None:
+            result = result.filter(pl.col("year").is_in(years))
+
+        if cols is not None:
+            result = result.select(cols)
+
+        return result
+
+
 if __name__ == "__main__":
-    processor = DataProcessor()
-    patterns = processor.get_hourly_patterns()
+    storage = DataStorage()
+    print(storage.get_hourly_patterns())
+    print(storage.get_hourly_patterns(years=[2010, 2011], cols=["year", "hour", "energy_mean"]))
+
