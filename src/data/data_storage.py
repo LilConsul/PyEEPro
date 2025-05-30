@@ -102,10 +102,20 @@ class DataStorage:
 
     def remove_cache(self, filename: str) -> None:
         """Remove a specific cache file."""
+        try:
+            setattr(self, filename.split(".")[0], None)
+        except AttributeError:
+            print(f"Attribute '{filename.split('.')[0]}' does not exist.")
         self._cache_manager.remove_cache(filename)
 
     def remove_all_caches(self) -> None:
         """Remove all cache files."""
+        try:
+            for attr in list(self.__dict__):
+                if attr not in ["_processor", "_cache_manager"]:
+                    setattr(self, attr, None)
+        except Exception as e:
+            print(f"Error removing attributes: {str(e)}")
         self._cache_manager.remove_all_caches()
 
     def get_cached_files(self) -> List[str]:
@@ -120,3 +130,4 @@ if __name__ == "__main__":
     storage = DataStorage()
     print(storage.get_hourly_patterns())
     print(storage.get_daily_patterns())
+    storage.remove_cache('hourly_patterns.csv')
