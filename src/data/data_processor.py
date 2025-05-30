@@ -89,6 +89,10 @@ class DataProcessor:
 
         return result
 
+    @staticmethod
+    def process_daily_patterns(df: pl.DataFrame) -> pl.DataFrame:
+        return df
+
     def get_hourly_patterns(self) -> pl.DataFrame:
         """
         Process energy consumption data to extract hourly patterns.
@@ -104,6 +108,22 @@ class DataProcessor:
                 print(hourly_patterns)
 
         return hourly_patterns
+
+    def get_dyily_patterns(self) -> pl.DataFrame:
+        """
+        Process energy consumption data to extract daily patterns.
+
+        Returns:
+            DataFrame with daily consumption patterns
+        """
+        data = self.load_data_from_dir(settings.DYLYBLOCKS_DIR)
+        daily_patterns = self.process_daily_patterns(data)
+
+        if settings.DEBUG:
+            with pl.Config(tbl_rows=20, tbl_cols=-1):
+                print(daily_patterns)
+
+        return daily_patterns
 
 
 class DataStorage:
@@ -208,7 +228,6 @@ storage = DataStorage()
 
 
 if __name__ == "__main__":
-    storage = DataStorage()
-    print(storage.get_hourly_patterns())
-    print(storage.get_hourly_patterns(years=[2010, 2011], cols=["year", "hour", "energy_mean"]))
+    processor = DataProcessor()
+    processor.get_dyily_patterns()
 
