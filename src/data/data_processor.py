@@ -5,7 +5,7 @@ from settings import settings
 
 class DataProcessor:
     @staticmethod
-    def load_data_from_dir(directory: Path) -> pl.DataFrame:
+    def _load_data_from_dir(directory: Path) -> pl.DataFrame:
         """
         Load all CSV files from a directory and concatenate them into a single Polars DataFrame.
 
@@ -36,7 +36,7 @@ class DataProcessor:
         return pl.concat(lazy_frames).collect()
 
     @staticmethod
-    def process_hourly_patterns(df: pl.DataFrame) -> pl.DataFrame:
+    def _process_hourly_patterns(df: pl.DataFrame) -> pl.DataFrame:
         """
         Convert half-hourly data to hourly and calculate energy statistics grouped by year.
 
@@ -88,8 +88,62 @@ class DataProcessor:
         return result
 
     @staticmethod
-    def process_daily_patterns(df: pl.DataFrame) -> pl.DataFrame:
-        return df
+    def _process_daily_patterns(df: pl.DataFrame) -> pl.DataFrame:
+        """
+        Process daily energy consumption data to extract patterns by day of week.
+
+        Args:
+            df: Polars DataFrame with daily energy data including 'day' column
+                and energy statistics
+
+        Returns:
+            Polars DataFrame with consumption statistics grouped by year and day of week
+        """
+        # Use lazy evaluation for query optimization
+        lazy_df = df.lazy()
+
+        # Extract year and day of week from the day column
+        result = (
+            lazy_df.with_columns(
+                [
+                    pl.col("day").str.to_date().dt.year().alias("year"),
+                    pl.col("day").str.to_date().dt.weekday().alias("weekday"),
+                ]
+            )
+            # Add weekday name mapping
+            .with_columns(
+                pl.when(pl.col("weekday") == 1)
+                .then(pl.lit("Monday"))
+                .when(pl.col("weekday") == 2)
+                .then(pl.lit("Tuesday"))
+                .when(pl.col("weekday") == 3)
+                .then(pl.lit("Wednesday"))
+                .when(pl.col("weekday") == 4)
+                .then(pl.lit("Thursday"))
+                .when(pl.col("weekday") == 5)
+                .then(pl.lit("Friday"))
+                .when(pl.col("weekday") == 6)
+                .then(pl.lit("Saturday"))
+                .when(pl.col("weekday") == 7)
+                .then(pl.lit("Sunday"))
+                .alias("weekday_name")
+            )
+            .group_by(["year", "weekday", "weekday_name"])
+            .agg(
+                energy_median=pl.col("energy_median").mean(),
+                energy_mean=pl.col("energy_mean").mean(),
+                energy_max=pl.col("energy_max").max(),
+                energy_count=pl.col("energy_count").sum(),
+                energy_std=pl.col("energy_std").mean(),
+                energy_sum=pl.col("energy_sum").sum(),
+                energy_min=pl.col("energy_min").min(),
+                days_count=pl.count(),
+            )
+            .sort(["year", "weekday"])
+            .collect()
+        )
+
+        return result
 
     def get_hourly_patterns(self) -> pl.DataFrame:
         """
@@ -98,8 +152,8 @@ class DataProcessor:
         Returns:
             DataFrame with hourly consumption patterns
         """
-        data = self.load_data_from_dir(settings.HHBLOCKS_DIR)
-        hourly_patterns = self.process_hourly_patterns(data)
+        data = self._load_data_from_dir(settings.HHBLOCKS_DIR)
+        hourly_patterns = self._process_hourly_patterns(data)
 
         if settings.DEBUG:
             with pl.Config(tbl_rows=-1, tbl_cols=-1):
@@ -114,11 +168,11 @@ class DataProcessor:
         Returns:
             DataFrame with daily consumption patterns
         """
-        data = self.load_data_from_dir(settings.DYLYBLOCKS_DIR)
-        daily_patterns = self.process_daily_patterns(data)
+        data = self._load_data_from_dir(settings.DYLYBLOCKS_DIR)
+        daily_patterns = self._process_daily_patterns(data)
 
         if settings.DEBUG:
-            with pl.Config(tbl_rows=20, tbl_cols=-1):
+            with pl.Config(tbl_rows=-1, tbl_cols=-1):
                 print(daily_patterns)
 
         return daily_patterns
