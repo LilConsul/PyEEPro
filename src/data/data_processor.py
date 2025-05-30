@@ -101,16 +101,14 @@ class DataProcessor:
 
         return result
 
-    def process(self) -> pl.DataFrame:
+    def get_hourly_patterns(self) -> pl.DataFrame:
         """
         Process energy consumption data to extract hourly patterns.
 
         Returns:
             DataFrame with hourly consumption patterns
         """
-        data_path = setting.DATA_DIR / "hhblock_dataset" / "hhblock_dataset"
-
-        data = self.load_data_from_dir(data_path)
+        data = self.load_data_from_dir(setting.HHBLOCKS_DIR)
         hourly_patterns = self.process_half_hourly_to_hourly_patterns(data)
 
         if setting.DEBUG:
@@ -122,4 +120,4 @@ class DataProcessor:
 
 if __name__ == "__main__":
     processor = DataProcessor()
-    patterns = processor.process()
+    patterns = processor.get_hourly_patterns()
