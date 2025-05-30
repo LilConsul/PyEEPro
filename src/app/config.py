@@ -1,5 +1,4 @@
 import streamlit as st
-from pathlib import Path
 
 
 def setup_page_custom_css():
