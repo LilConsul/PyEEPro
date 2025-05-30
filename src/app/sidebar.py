@@ -1,33 +1,27 @@
 import streamlit as st
-from datetime import datetime, timedelta
 
 
 def render_sidebar():
     with st.sidebar:
-        st.header("Data Upload")
-        uploaded_file = st.file_uploader(
-            "Upload your energy consumption data (CSV)", type=["csv"]
-        )
-
-        st.markdown("---")
         st.header("Filters")
+        current_filters = st.session_state.get("filters_turned_on", {})
+        if is_yearly := current_filters.get("years", False):
+            available_years = list(range(2011, 2015))
+            selected_years = st.multiselect(
+                "Select Years", available_years, default=available_years
+            )
 
-        date_range = st.date_input(
-            "Select Date Range", [datetime.now() - timedelta(days=30), datetime.now()]
-        )
-
-        consumer_type = st.multiselect(
-            "Consumer Type",
-            ["High", "Medium", "Low"],
-            default=["High", "Medium", "Low"],
-        )
-
-        tariff_type = st.selectbox("Tariff Type", ["All", "Standard", "Economy-7"])
+        if is_consumers := current_filters.get("consumers", False):
+            available_consumers = ["High", "Medium", "Low"]
+            selected_consumers = st.multiselect(
+                "Select Consumer Types",
+                available_consumers,
+                default=available_consumers,
+            )
 
         filters = {
-            "date_range": date_range,
-            "consumer_type": consumer_type,
-            "tariff_type": tariff_type,
+            "years": selected_years if is_yearly else None,
+            "consumer_type": selected_consumers if is_consumers else None,
         }
 
-    return uploaded_file, filters
+    return filters

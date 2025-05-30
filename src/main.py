@@ -38,6 +38,12 @@ def initialize_session_state():
             "initialization_complete": False,
         }
 
+    if "filters_turned_on" not in st.session_state:
+        st.session_state.filters_turned_on = {
+            "years": True,
+        }
+
+
     if "first_run" not in st.session_state:
         st.session_state.first_run = True
 
@@ -45,10 +51,7 @@ def initialize_session_state():
 def render_app_content():
     """Render the main application content"""
     # Get user input from sidebar
-    uploaded_file, filters = render_sidebar()
-
-    # Use dummy data for now (regardless of whether real data exists)
-    data = generate_demo_data()
+    filters = render_sidebar()
 
     # Create tabs for different analyses
     tab1, tab2, tab3, tab4 = st.tabs(
@@ -61,7 +64,7 @@ def render_app_content():
     )
 
     with tab1:
-        render_eda_tab(data)
+        render_eda_tab(filters)
     with tab2:
         render_not_found_tab()
     with tab3:

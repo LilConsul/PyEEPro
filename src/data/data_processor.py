@@ -1,8 +1,7 @@
 from typing import List
-
 import polars as pl
 from pathlib import Path
-from src.app.config import setting
+from settings import settings
 
 
 class DataProcessor:
@@ -27,7 +26,7 @@ class DataProcessor:
             try:
                 lazy_df = pl.scan_csv(file)
                 lazy_frames.append(lazy_df)
-                if setting.DEBUG:
+                if settings.DEBUG:
                     print(f"Queued {file.name} for processing")
             except Exception as e:
                 print(f"Error queuing {file.name}: {str(e)}")
@@ -97,10 +96,10 @@ class DataProcessor:
         Returns:
             DataFrame with hourly consumption patterns
         """
-        data = self.load_data_from_dir(setting.HHBLOCKS_DIR)
+        data = self.load_data_from_dir(settings.HHBLOCKS_DIR)
         hourly_patterns = self.process_hourly_patterns(data)
 
-        if setting.DEBUG:
+        if settings.DEBUG:
             with pl.Config(tbl_rows=-1, tbl_cols=-1):
                 print(hourly_patterns)
 
