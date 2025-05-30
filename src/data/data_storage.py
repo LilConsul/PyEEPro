@@ -17,6 +17,7 @@ class DataStorage:
         self._cache_manager = CacheManager()
         self.hourly_patterns = self._cache_manager.load_cache("hourly_patterns.csv")
         self.dayly_patterns = self._cache_manager.load_cache("daily_patterns.csv")
+        self.weekly_patterns = self._cache_manager.load_cache("weekly_patterns.csv")
 
     def _get_patterns(
         self,
@@ -93,9 +94,30 @@ class DataStorage:
             DataFrame with daily patterns.
         """
         return self._get_patterns(
-            "dayly_patterns",  # Using existing attribute name for consistency
+            "daiyly_patterns",  # Using existing attribute name for consistency
             "daily_patterns.csv",
-            self._processor.get_dyily_patterns,
+            self._processor.get_daily_patterns,
+            years,
+            cols,
+        )
+
+    def get_weekly_patterns(
+        self, years: List[int] | None = None, cols: List[str] | None = None
+    ) -> pl.DataFrame:
+        """
+        Retrieve weekly patterns from cache or process if not available.
+
+        Args:
+            years: Optional list of years to filter by.
+            cols: Optional list of columns to select.
+
+        Returns:
+            DataFrame with weekly patterns.
+        """
+        return self._get_patterns(
+            "weekly_patterns",
+            "weekly_patterns.csv",
+            self._processor.get_weekly_patterns,
             years,
             cols,
         )
@@ -128,6 +150,5 @@ storage = DataStorage()
 
 if __name__ == "__main__":
     storage = DataStorage()
-    print(storage.get_hourly_patterns())
-    print(storage.get_daily_patterns())
-    storage.remove_cache('hourly_patterns.csv')
+    print(storage.get_weekly_patterns())
+    print(storage.get_weekly_patterns())

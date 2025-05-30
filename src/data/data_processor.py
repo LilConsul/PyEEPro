@@ -145,6 +145,46 @@ class DataProcessor:
 
         return result
 
+    @staticmethod
+    def _process_weekly_patterns(df: pl.DataFrame) -> pl.DataFrame:
+        """
+        Process weekly energy consumption data to extract patterns by week of year.
+
+        Args:
+            df: Polars DataFrame with daily energy data including 'day' column
+                and energy statistics
+
+        Returns:
+            Polars DataFrame with consumption statistics grouped by year and week of year
+        """
+        # Use lazy evaluation for query optimization
+        lazy_df = df.lazy()
+
+        # Extract year and week of year from the day column
+        result = (
+            lazy_df.with_columns(
+                [
+                    pl.col("day").str.to_date().dt.year().alias("year"),
+                    pl.col("day").str.to_date().dt.week().alias("week"),
+                ]
+            )
+            .group_by(["year", "week"])
+            .agg(
+                energy_median=pl.col("energy_median").mean(),
+                energy_mean=pl.col("energy_mean").mean(),
+                energy_max=pl.col("energy_max").max(),
+                energy_count=pl.col("energy_count").sum(),
+                energy_std=pl.col("energy_std").mean(),
+                energy_sum=pl.col("energy_sum").sum(),
+                energy_min=pl.col("energy_min").min(),
+                weeks_count=pl.count(),
+            )
+            .sort(["year", "week"])
+            .collect()
+        )
+
+        return result
+
     def get_hourly_patterns(self) -> pl.DataFrame:
         """
         Process energy consumption data to extract hourly patterns.
@@ -161,7 +201,7 @@ class DataProcessor:
 
         return hourly_patterns
 
-    def get_dyily_patterns(self) -> pl.DataFrame:
+    def get_daily_patterns(self) -> pl.DataFrame:
         """
         Process energy consumption data to extract daily patterns.
 
@@ -176,5 +216,21 @@ class DataProcessor:
                 print(daily_patterns)
 
         return daily_patterns
+
+    def get_weekly_patterns(self) -> pl.DataFrame:
+        """
+        Process energy consumption data to extract weekly patterns.
+
+        Returns:
+            DataFrame with weekly consumption patterns
+        """
+        data = self._load_data_from_dir(settings.DYLYBLOCKS_DIR)
+        weekly_patterns = self._process_weekly_patterns(data)
+
+        if settings.DEBUG:
+            with pl.Config(tbl_rows=-1, tbl_cols=-1):
+                print(weekly_patterns)
+
+        return weekly_patterns
 
 
