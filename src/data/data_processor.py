@@ -115,13 +115,70 @@ class DataStorage:
 
     def __init__(self):
         self.processor = DataProcessor()
-        self.hourly_patterns = None
+        settings.CACHE_DIR.mkdir(exist_ok=True)
+        self.hourly_patterns = self._load_cache("hourly_patterns.csv")
+
+    @staticmethod
+    def _load_cache(filename: str) -> pl.DataFrame | None:
+        """Load data from cache if it exists."""
+        cache_path = settings.CACHE_DIR / filename
+        if cache_path.exists():
+            try:
+                return pl.read_csv(cache_path)
+            except Exception as e:
+                if settings.DEBUG:
+                    print(f"Error loading cache {filename}: {str(e)}")
+        return None
+
+    @staticmethod
+    def _save_cache(data: pl.DataFrame, filename: str) -> None:
+        """Save processed data to cache."""
+        cache_path = settings.CACHE_DIR / filename
+        try:
+            data.write_csv(cache_path)
+            if settings.DEBUG:
+                print(f"Cached data saved to {filename}")
+        except Exception as e:
+            if settings.DEBUG:
+                print(f"Error saving cache {filename}: {str(e)}")
+
+    @staticmethod
+    def remove_cache(filename: str) -> None:
+        """Remove a specific cache file."""
+        cache_path = settings.CACHE_DIR / filename
+        if cache_path.exists():
+            try:
+                cache_path.unlink()
+                if settings.DEBUG:
+                    print(f"Cache {filename} removed")
+            except Exception as e:
+                if settings.DEBUG:
+                    print(f"Error removing cache {filename}: {str(e)}")
+        else:
+            if settings.DEBUG:
+                print(f"Cache {filename} does not exist")
+
+    @staticmethod
+    def remove_all_caches() -> None:
+        """Remove all cache files."""
+        if settings.CACHE_DIR.exists():
+            try:
+                for file in settings.CACHE_DIR.glob("*.csv"):
+                    file.unlink()
+                if settings.DEBUG:
+                    print("All caches removed")
+            except Exception as e:
+                if settings.DEBUG:
+                    print(f"Error removing caches: {str(e)}")
+        else:
+            if settings.DEBUG:
+                print("Cache directory does not exist")
 
     def get_hourly_patterns(
         self, years: List[int] | None = None, cols: List[str] | None = None
     ) -> pl.DataFrame:
         """
-        Retrieve hourly patterns from the data processor.
+        Retrieve hourly patterns from cache or process if not available.
 
         Args:
             years: Optional list of years to filter by.
@@ -134,6 +191,7 @@ class DataStorage:
             data = self.processor.get_hourly_patterns()
             data = data.with_columns(pl.col("year").cast(pl.Int32))
             self.hourly_patterns = data
+            self._save_cache(data, "hourly_patterns.csv")
 
         result = self.hourly_patterns
 

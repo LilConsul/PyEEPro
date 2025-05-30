@@ -3,8 +3,10 @@ from pathlib import Path
 
 class Settings:
     BASE_DIR = Path(__file__).resolve().parent.parent
-    DATA_DIR = BASE_DIR / "data" / "smart-meters-in-london"
+    ALL_DATA_DIR = BASE_DIR / "data"
+    DATA_DIR = ALL_DATA_DIR / "smart-meters-in-london"
     HHBLOCKS_DIR = DATA_DIR / "hhblock_dataset" / "hhblock_dataset"
+    CACHE_DIR = ALL_DATA_DIR / "cache"
     DEBUG = True
 
 
