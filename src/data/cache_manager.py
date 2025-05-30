@@ -54,7 +54,7 @@ class CacheManager:
                 for file in self.cache_dir.glob("*.csv"):
                     file.unlink()
                 if settings.DEBUG:
-                    print("All caches removed")
+                    print("All caches files removed")
             except Exception as e:
                 if settings.DEBUG:
                     print(f"Error removing caches: {str(e)}")
