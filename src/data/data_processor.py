@@ -51,18 +51,18 @@ class DataProcessor:
         # Use lazy evaluation for query optimization
         lazy_df = df.lazy()
 
-        # Extract year and cast to integer in one operation
         lazy_df = lazy_df.with_columns(
             pl.col("day").str.slice(0, 4).cast(pl.Int32).alias("year")
         )
 
-        # Create expressions for hourly data by combining half-hour intervals
         hourly_cols = [
-            (pl.col(f"hh_{hour * 2}") + pl.col(f"hh_{hour * 2 + 1}")).alias(f"h_{hour}")
+            (
+                pl.col(f"hh_{hour * 2}").fill_null(0)
+                + pl.col(f"hh_{hour * 2 + 1}").fill_null(0)
+            ).alias(f"h_{hour}")
             for hour in range(24)
         ]
 
-        # Create an optimized processing pipeline
         result = (
             lazy_df.select("year", *hourly_cols)
             .unpivot(
@@ -72,6 +72,7 @@ class DataProcessor:
                 value_name="energy",
             )
             .with_columns(pl.col("hour").str.replace("h_", "").cast(pl.Int32))
+            .filter(pl.col("energy").is_not_null())
             .group_by(["year", "hour"])
             .agg(
                 energy_median=pl.col("energy").median(),
@@ -189,7 +190,6 @@ class DataStorage:
         """
         if self.hourly_patterns is None:
             data = self.processor.get_hourly_patterns()
-            data = data.with_columns(pl.col("year").cast(pl.Int32))
             self.hourly_patterns = data
             self._save_cache(data, "hourly_patterns.csv")
 
