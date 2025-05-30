@@ -75,13 +75,21 @@ def render_hourly_plot(hourly_data):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def render_years(filters):
-    return str(filters.get("years", "")).strip("[]")
+def render_years() -> str:
+    """
+    Render the selected years from the session state.
+
+    Returns:
+        A string representation of selected years or "All" if none are selected.
+    """
+    return (
+        str(st.session_state.get("filters", {}).get("years", "")).strip("[]") or "All"
+    )
 
 
-def render_eda_tab(filters):
+def render_eda_tab():
+    filters = st.session_state.get("filters", {})
     st.header("📊 Exploratory Data Analysis")
-
     time_based_tab, household_tab, weather_tab = st.tabs(
         ["📈 Time-based trends", "📊 Household behavior", "📉 Weather impact"]
     )
@@ -90,7 +98,7 @@ def render_eda_tab(filters):
         st.subheader("Time-based Energy Consumption Patterns")
 
         # Hourly Patterns Section
-        st.markdown(f"### Hourly Patterns | Year {render_years(filters)}")
+        st.markdown(f"### Hourly Patterns | Year {render_years()}")
         with st.spinner("Loading hourly patterns..."):
             hourly_data = storage.get_hourly_patterns(
                 years=filters.get("years", None),
@@ -98,6 +106,7 @@ def render_eda_tab(filters):
         render_hourly_plot(hourly_data)
         with st.expander("View Dataframe", expanded=False):
             st.dataframe(hourly_data)
+        st.divider()
 
         # Daily Patterns Section
         st.markdown("### Daily Patterns")

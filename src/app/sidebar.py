@@ -19,9 +19,10 @@ def render_sidebar():
                 default=available_consumers,
             )
 
-        filters = {
+        if st.session_state.get("filters") is None:
+            st.session_state["filters"] = {}
+        st.session_state.filters = filters = {
             "years": selected_years if is_yearly else None,
             "consumer_type": selected_consumers if is_consumers else None,
         }
 
-    return filters

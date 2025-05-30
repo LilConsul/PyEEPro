@@ -2,8 +2,6 @@ import streamlit as st
 from app.config import setup_page_custom_css
 from app.sidebar import render_sidebar
 from app.tabs import render_eda_tab, render_not_found_tab
-
-from data.dummy_data import generate_demo_data
 from scripts import handle_dataset_availability
 
 
@@ -51,7 +49,7 @@ def initialize_session_state():
 def render_app_content():
     """Render the main application content"""
     # Get user input from sidebar
-    filters = render_sidebar()
+    render_sidebar()
 
     # Create tabs for different analyses
     tab1, tab2, tab3, tab4 = st.tabs(
@@ -64,7 +62,7 @@ def render_app_content():
     )
 
     with tab1:
-        render_eda_tab(filters)
+        render_eda_tab()
     with tab2:
         render_not_found_tab()
     with tab3:
