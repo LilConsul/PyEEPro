@@ -143,6 +143,9 @@ class DataStorage:
         return result
 
 
+storage = DataStorage()
+
+
 if __name__ == "__main__":
     storage = DataStorage()
     print(storage.get_hourly_patterns())
