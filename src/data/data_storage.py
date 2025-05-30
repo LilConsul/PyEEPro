@@ -15,17 +15,14 @@ class DataStorage:
     def __init__(self):
         self._processor = DataProcessor()
         self._cache_manager = CacheManager()
-        self.hourly_patterns = self._cache_manager.load_cache("hourly_patterns.csv")
-        self.dayly_patterns = self._cache_manager.load_cache("daily_patterns.csv")
-        self.weekly_patterns = self._cache_manager.load_cache("weekly_patterns.csv")
 
     def _get_patterns(
         self,
         pattern_attr: str,
-        cache_file: str,
         processor_method: callable,
         years: List[int] | None = None,
         cols: List[str] | None = None,
+        cache_file: str | None = None,
     ) -> pl.DataFrame:
         """
         Generic wrapper for retrieving pattern data with filtering options.
@@ -40,17 +37,20 @@ class DataStorage:
         Returns:
             DataFrame with the requested patterns.
         """
-        # Check if data is already loaded
+        if cache_file is None:
+            cache_file = f"{pattern_attr}.csv"
+
+        if not hasattr(self, pattern_attr):
+            setattr(self, pattern_attr, self._cache_manager.load_cache(cache_file))
+
         data = getattr(self, pattern_attr)
         if data is None:
-            # Process and cache data if not available
             data = processor_method()
             setattr(self, pattern_attr, data)
             self._cache_manager.save_cache(data, cache_file)
 
         result = data
 
-        # Apply filters
         if years is not None and len(years) != 0:
             result = result.filter(pl.col("year").is_in(years))
 
@@ -74,7 +74,6 @@ class DataStorage:
         """
         return self._get_patterns(
             "hourly_patterns",
-            "hourly_patterns.csv",
             self._processor.get_hourly_patterns,
             years,
             cols,
@@ -94,8 +93,7 @@ class DataStorage:
             DataFrame with daily patterns.
         """
         return self._get_patterns(
-            "daiyly_patterns",  # Using existing attribute name for consistency
-            "daily_patterns.csv",
+            "daiyly_patterns",
             self._processor.get_daily_patterns,
             years,
             cols,
@@ -116,7 +114,6 @@ class DataStorage:
         """
         return self._get_patterns(
             "weekly_patterns",
-            "weekly_patterns.csv",
             self._processor.get_weekly_patterns,
             years,
             cols,
@@ -152,3 +149,7 @@ if __name__ == "__main__":
     storage = DataStorage()
     print(storage.get_weekly_patterns())
     print(storage.get_weekly_patterns())
+    print(storage.get_daily_patterns())
+    print(storage.get_daily_patterns())
+    print(storage.get_hourly_patterns())
+    print(storage.get_hourly_patterns())
