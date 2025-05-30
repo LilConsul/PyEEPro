@@ -48,34 +48,31 @@ class DataProcessor:
         Returns:
             Polars DataFrame with hourly consumption statistics by year
         """
-        # Extract year from the day column (assuming format YYYY-MM-DD)
-        df = df.with_columns(pl.col("day").str.slice(0, 4).alias("year"))
+        # Use lazy evaluation for query optimization
+        lazy_df = df.lazy()
 
-        # Create hourly data by combining half-hour intervals
+        # Extract year and cast to integer in one operation
+        lazy_df = lazy_df.with_columns(
+            pl.col("day").str.slice(0, 4).cast(pl.Int32).alias("year")
+        )
+
+        # Create expressions for hourly data by combining half-hour intervals
         hourly_cols = [
             (pl.col(f"hh_{hour * 2}") + pl.col(f"hh_{hour * 2 + 1}")).alias(f"h_{hour}")
             for hour in range(24)
         ]
 
-        # Add year and hourly columns to dataframe
-        df_with_hourly = df.select(pl.col("year"), *hourly_cols)
-
-        # Melt the data to have hour as a column
-        melted_df = df_with_hourly.unpivot(
-            index=["year"],
-            on=[f"h_{hour}" for hour in range(24)],
-            variable_name="hour",
-            value_name="energy",
-        )
-
-        # Extract hour number from column name
-        melted_df = melted_df.with_columns(
-            pl.col("hour").str.replace("h_", "").cast(pl.Int32)
-        )
-
-        # Group by year and hour, then calculate requested statistics
+        # Create an optimized processing pipeline
         result = (
-            melted_df.group_by(["year", "hour"])
+            lazy_df.select("year", *hourly_cols)
+            .unpivot(
+                index=["year"],
+                on=[f"h_{hour}" for hour in range(24)],
+                variable_name="hour",
+                value_name="energy",
+            )
+            .with_columns(pl.col("hour").str.replace("h_", "").cast(pl.Int32))
+            .group_by(["year", "hour"])
             .agg(
                 energy_median=pl.col("energy").median(),
                 energy_mean=pl.col("energy").mean(),
@@ -86,6 +83,7 @@ class DataProcessor:
                 energy_min=pl.col("energy").min(),
             )
             .sort(["year", "hour"])
+            .collect()
         )
 
         return result
