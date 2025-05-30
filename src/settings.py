@@ -8,7 +8,7 @@ class Settings:
     HHBLOCKS_DIR = DATA_DIR / "hhblock_dataset" / "hhblock_dataset"
     DYLYBLOCKS_DIR = DATA_DIR / "daily_dataset" / "daily_dataset"
     CACHE_DIR = ALL_DATA_DIR / "cache"
-    DEBUG = True
+    DEBUG = False
 
 
 settings = Settings()

@@ -38,13 +38,34 @@ class DataProcessor:
     @staticmethod
     def _process_hourly_patterns(df: pl.DataFrame) -> pl.DataFrame:
         """
-        Convert half-hourly data to hourly and calculate energy statistics grouped by year.
+        Convert half-hourly energy consumption data to hourly patterns and calculate statistics.
+
+        This method transforms raw half-hourly readings (48 readings per day in columns hh_0 to hh_47)
+        into hourly aggregated data. It calculates various statistical measures for each hour
+        across different years, enabling analysis of hourly consumption patterns.
 
         Args:
-            df: Polars DataFrame with columns LCLid, day, hh_0, hh_1, ..., hh_47
+            df: Polars DataFrame with columns:
+               - LCLid: Customer identifier
+               - day: Date string in format YYYY-MM-DD
+               - hh_0 through hh_47: Half-hourly energy readings (48 columns)
 
         Returns:
-            Polars DataFrame with hourly consumption statistics by year
+            Polars DataFrame with columns:
+               - year: Calendar year extracted from dates
+               - hour: Hour of day (0-23)
+               - energy_median: Median energy consumption for that hour
+               - energy_mean: Mean energy consumption for that hour
+               - energy_max: Maximum energy consumption for that hour
+               - energy_count: Number of data points used in calculation
+               - energy_std: Standard deviation of energy consumption
+               - energy_sum: Total energy consumption for that hour
+               - energy_min: Minimum energy consumption for that hour
+
+        Notes:
+            - Missing values in half-hourly readings are filled with zeros
+            - Hours are calculated by summing consecutive half-hour readings
+            - Results are sorted by year and hour
         """
         # Use lazy evaluation for query optimization
         lazy_df = df.lazy()
@@ -92,12 +113,39 @@ class DataProcessor:
         """
         Process daily energy consumption data to extract patterns by day of week.
 
+        This method analyzes daily energy consumption data and aggregates it by weekday,
+        allowing for identification of consumption patterns specific to each day of the week.
+        It converts date strings to date objects, extracts weekday information, and
+        calculates various statistical metrics for each weekday.
+
         Args:
-            df: Polars DataFrame with daily energy data including 'day' column
-                and energy statistics
+            df: Polars DataFrame containing at least:
+               - day: Date string in format YYYY-MM-DD
+               - energy_median: Median energy consumption for each day
+               - energy_mean: Mean energy consumption for each day
+               - energy_max: Maximum energy consumption for each day
+               - energy_count: Number of data points in each day
+               - energy_std: Standard deviation of energy consumption
+               - energy_sum: Total energy consumption for each day
+               - energy_min: Minimum energy consumption for each day
 
         Returns:
-            Polars DataFrame with consumption statistics grouped by year and day of week
+            Polars DataFrame with columns:
+               - year: Calendar year of the data
+               - weekday: Day of week as integer (1-7, Monday-Sunday)
+               - weekday_name: Name of day of week (Monday through Sunday)
+               - energy_median: Average of daily median energy values
+               - energy_mean: Average of daily mean energy values
+               - energy_max: Maximum energy consumption for that weekday
+               - energy_count: Sum of daily count values
+               - energy_std: Average of daily standard deviation values
+               - energy_sum: Total energy consumption for that weekday
+               - energy_min: Minimum energy consumption for that weekday
+               - days_count: Number of days included in each group
+
+        Notes:
+            - Data is grouped by year and day of week
+            - Results are sorted by year and weekday
         """
         # Use lazy evaluation for query optimization
         lazy_df = df.lazy()
@@ -145,12 +193,96 @@ class DataProcessor:
 
         return result
 
-    def get_hourly_patterns(self) -> pl.DataFrame:
+    @staticmethod
+    def _process_weekly_patterns(df: pl.DataFrame) -> pl.DataFrame:
         """
-        Process energy consumption data to extract hourly patterns.
+        Process daily energy consumption data to extract patterns by week of year.
+
+        This method aggregates daily energy consumption data by week of year,
+        enabling analysis of seasonal patterns throughout the year. It converts
+        date strings to date objects, extracts week number information, and
+        calculates various statistical metrics for each week of the year.
+
+        Args:
+            df: Polars DataFrame containing at least:
+               - day: Date string in format YYYY-MM-DD
+               - energy_median: Median energy consumption for each day
+               - energy_mean: Mean energy consumption for each day
+               - energy_max: Maximum energy consumption for each day
+               - energy_count: Number of data points in each day
+               - energy_std: Standard deviation of energy consumption
+               - energy_sum: Total energy consumption for each day
+               - energy_min: Minimum energy consumption for each day
 
         Returns:
-            DataFrame with hourly consumption patterns
+            Polars DataFrame with columns:
+               - year: Calendar year of the data
+               - week: Week number within the year (1-53)
+               - energy_median: Average of daily median energy values for that week
+               - energy_mean: Average of daily mean energy values for that week
+               - energy_max: Maximum energy consumption for that week
+               - energy_count: Sum of daily count values for that week
+               - energy_std: Average of daily standard deviation values for that week
+               - energy_sum: Total energy consumption for that week
+               - energy_min: Minimum energy consumption for that week
+               - weeks_count: Number of days included in each weekly group
+
+        Notes:
+            - Data is grouped by year and week number
+            - Results are sorted by year and week number
+            - Week numbering follows ISO standard (weeks start on Monday)
+        """
+        # Use lazy evaluation for query optimization
+        lazy_df = df.lazy()
+
+        # Extract year and week of year from the day column
+        result = (
+            lazy_df.with_columns(
+                [
+                    pl.col("day").str.to_date().dt.year().alias("year"),
+                    pl.col("day").str.to_date().dt.week().alias("week"),
+                ]
+            )
+            .group_by(["year", "week"])
+            .agg(
+                energy_median=pl.col("energy_median").mean(),
+                energy_mean=pl.col("energy_mean").mean(),
+                energy_max=pl.col("energy_max").max(),
+                energy_count=pl.col("energy_count").sum(),
+                energy_std=pl.col("energy_std").mean(),
+                energy_sum=pl.col("energy_sum").sum(),
+                energy_min=pl.col("energy_min").min(),
+                weeks_count=pl.count(),
+            )
+            .sort(["year", "week"])
+            .collect()
+        )
+
+        return result
+
+    def get_hourly_patterns(self) -> pl.DataFrame:
+        """
+        Process energy consumption data to extract hourly patterns throughout the day.
+
+        This method serves as a pipeline that:
+        1. Loads raw half-hourly energy data from the configured directory (HHBLOCKS_DIR)
+        2. Processes the data to extract hourly consumption patterns
+        3. Optionally displays debug information if enabled in settings
+
+        Returns:
+            Polars DataFrame containing hourly energy consumption statistics with columns:
+            - year: Calendar year extracted from dates (int)
+            - hour: Hour of day (0-23) (int)
+            - energy_median: Median energy consumption for that hour (float)
+            - energy_mean: Mean energy consumption for that hour (float)
+            - energy_max: Maximum energy consumption for that hour (float)
+            - energy_count: Number of data points used in calculation (int)
+            - energy_std: Standard deviation of energy consumption (float)
+            - energy_sum: Total energy consumption for that hour (float)
+            - energy_min: Minimum energy consumption for that hour (float)
+
+        Raises:
+            ValueError: If no valid CSV files are found in the configured directory
         """
         data = self._load_data_from_dir(settings.HHBLOCKS_DIR)
         hourly_patterns = self._process_hourly_patterns(data)
@@ -161,12 +293,31 @@ class DataProcessor:
 
         return hourly_patterns
 
-    def get_dyily_patterns(self) -> pl.DataFrame:
+    def get_daily_patterns(self) -> pl.DataFrame:
         """
-        Process energy consumption data to extract daily patterns.
+        Process energy consumption data to extract patterns by day of week.
+
+        This method serves as a pipeline that:
+        1. Loads daily energy data from the configured directory (DYLYBLOCKS_DIR)
+        2. Processes the data to extract daily consumption patterns by weekday
+        3. Optionally displays debug information if enabled in settings
 
         Returns:
-            DataFrame with daily consumption patterns
+            Polars DataFrame containing daily energy consumption statistics with columns:
+            - year: Calendar year of the data (int)
+            - weekday: Day of week as integer (1-7, Monday-Sunday) (int)
+            - weekday_name: Name of day of week ("Monday" through "Sunday") (str)
+            - energy_median: Average of daily median energy values (float)
+            - energy_mean: Average of daily mean energy values (float)
+            - energy_max: Maximum energy consumption for that weekday (float)
+            - energy_count: Sum of daily count values (int)
+            - energy_std: Average of daily standard deviation values (float)
+            - energy_sum: Total energy consumption for that weekday (float)
+            - energy_min: Minimum energy consumption for that weekday (float)
+            - days_count: Number of days included in each group (int)
+
+        Raises:
+            ValueError: If no valid CSV files are found in the configured directory
         """
         data = self._load_data_from_dir(settings.DYLYBLOCKS_DIR)
         daily_patterns = self._process_daily_patterns(data)
@@ -176,5 +327,39 @@ class DataProcessor:
                 print(daily_patterns)
 
         return daily_patterns
+
+    def get_weekly_patterns(self) -> pl.DataFrame:
+        """
+        Process energy consumption data to extract patterns by week of year.
+
+        This method serves as a pipeline that:
+        1. Loads daily energy data from the configured directory (DYLYBLOCKS_DIR)
+        2. Processes the data to extract weekly consumption patterns
+        3. Optionally displays debug information if enabled in settings
+
+        Returns:
+            Polars DataFrame containing weekly energy consumption statistics with columns:
+            - year: Calendar year of the data (int)
+            - week: Week number within the year (1-53) (int)
+            - energy_median: Average of daily median energy values for that week (float)
+            - energy_mean: Average of daily mean energy values for that week (float)
+            - energy_max: Maximum energy consumption for that week (float)
+            - energy_count: Sum of daily count values for that week (int)
+            - energy_std: Average of daily standard deviation values for that week (float)
+            - energy_sum: Total energy consumption for that week (float)
+            - energy_min: Minimum energy consumption for that week (float)
+            - weeks_count: Number of days included in each weekly group (int)
+
+        Raises:
+            ValueError: If no valid CSV files are found in the configured directory
+        """
+        data = self._load_data_from_dir(settings.DYLYBLOCKS_DIR)
+        weekly_patterns = self._process_weekly_patterns(data)
+
+        if settings.DEBUG:
+            with pl.Config(tbl_rows=-1, tbl_cols=-1):
+                print(weekly_patterns)
+
+        return weekly_patterns
 
 
