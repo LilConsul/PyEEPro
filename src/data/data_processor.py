@@ -2,6 +2,7 @@ from typing import List
 import polars as pl
 from pathlib import Path
 from settings import settings
+import streamlit as st
 
 
 class DataProcessor:
@@ -107,6 +108,13 @@ class DataProcessor:
 
 
 class DataStorage:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self):
         self.processor = DataProcessor()
         self.hourly_patterns = None
@@ -125,11 +133,9 @@ class DataStorage:
             DataFrame with hourly patterns.
         """
         if self.hourly_patterns is None:
-            self.hourly_patterns = self.processor.get_hourly_patterns()
-            # Ensure year is cast to integer for proper comparison
-            self.hourly_patterns = self.hourly_patterns.with_columns(
-                pl.col("year").cast(pl.Int32)
-            )
+            data = self.processor.get_hourly_patterns()
+            data = data.with_columns(pl.col("year").cast(pl.Int32))
+            self.hourly_patterns = data
 
         result = self.hourly_patterns
 
