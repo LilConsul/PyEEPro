@@ -93,7 +93,7 @@ class DataStorage:
             DataFrame with daily patterns.
         """
         return self._get_patterns(
-            "daiyly_patterns",
+            "daily_patterns",
             self._processor.get_daily_patterns,
             years,
             cols,

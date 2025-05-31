@@ -298,7 +298,7 @@ class DataProcessor:
         Process energy consumption data to extract patterns by day of week.
 
         This method serves as a pipeline that:
-        1. Loads daily energy data from the configured directory (DYLYBLOCKS_DIR)
+        1. Loads daily energy data from the configured directory (DAILYBLOCKS_DIR)
         2. Processes the data to extract daily consumption patterns by weekday
         3. Optionally displays debug information if enabled in settings
 
@@ -319,7 +319,7 @@ class DataProcessor:
         Raises:
             ValueError: If no valid CSV files are found in the configured directory
         """
-        data = self._load_data_from_dir(settings.DYLYBLOCKS_DIR)
+        data = self._load_data_from_dir(settings.DAILYBLOCKS_DIR)
         daily_patterns = self._process_daily_patterns(data)
 
         if settings.DEBUG:
@@ -333,7 +333,7 @@ class DataProcessor:
         Process energy consumption data to extract patterns by week of year.
 
         This method serves as a pipeline that:
-        1. Loads daily energy data from the configured directory (DYLYBLOCKS_DIR)
+        1. Loads daily energy data from the configured directory (DAILYBLOCKS_DIR)
         2. Processes the data to extract weekly consumption patterns
         3. Optionally displays debug information if enabled in settings
 
@@ -353,7 +353,7 @@ class DataProcessor:
         Raises:
             ValueError: If no valid CSV files are found in the configured directory
         """
-        data = self._load_data_from_dir(settings.DYLYBLOCKS_DIR)
+        data = self._load_data_from_dir(settings.DAILYBLOCKS_DIR)
         weekly_patterns = self._process_weekly_patterns(data)
 
         if settings.DEBUG:
