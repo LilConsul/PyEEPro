@@ -642,4 +642,73 @@ class DataProcessor:
 
         return weekend_patterns
 
+    @staticmethod
+    def _process_household_patterns(
+        df: pl.DataFrame, household_info: pl.DataFrame
+    ) -> pl.DataFrame:
+        """
+        Process energy consumption data to extract patterns by household type.
+
+        This method aggregates energy consumption data by household categories such as
+        tariff type (Standard/ToU) and socioeconomic group (Acorn categories).
+
+        Args:
+            df: Polars DataFrame containing energy consumption data with LCLid, day,
+                and energy metrics (median, mean, max, etc.)
+            household_info: Polars DataFrame containing household metadata with LCLid,
+                stdorToU, Acorn, and Acorn_grouped
+
+        Returns:
+            Polars DataFrame with aggregated energy statistics grouped by year,
+            tariff type, and Acorn group
+        """
+        # Use lazy evaluation for query optimization
+        lazy_df = df.lazy()
+        lazy_household_info = household_info.lazy()
+
+        # Extract year from day column
+        lazy_df = lazy_df.with_columns(
+            pl.col("day").str.to_date().dt.year().alias("year")
+        )
+
+        # Join the energy data with household information
+        joined_df = lazy_df.join(
+            lazy_household_info.select("LCLid", "stdorToU", "Acorn", "Acorn_grouped"),
+            on="LCLid",
+            how="inner",
+        )
+
+        # Group by year, tariff type, and Acorn group
+        result = (
+            joined_df.group_by(["stdorToU", "Acorn_grouped", "Acorn"])
+            .agg(
+                energy_median=pl.col("energy_median").mean(),
+                energy_mean=pl.col("energy_mean").mean(),
+                energy_max=pl.col("energy_max").max(),
+                energy_count=pl.col("energy_count").sum(),
+                energy_std=pl.col("energy_std").mean(),
+                energy_sum=pl.col("energy_sum").sum(),
+                energy_min=pl.col("energy_min").min(),
+                household_count=pl.col("LCLid").n_unique(),
+                days_count=pl.count(),
+            )
+            .sort(["Acorn_grouped", "Acorn", "stdorToU"])
+            .collect()
+        )
+
+        return result
+
+
+    def get_household_patterns(self) -> pl.DataFrame:
+        data = self._load_data_from_dir(settings.DAILYBLOCKS_DIR)
+        household_info = self._load_data_from_file(settings.INFORMATION_HOUSEHOLD_FILE)
+        household_patterns = self._process_household_patterns(data, household_info)
+
+        if settings.DEBUG:
+            with pl.Config(tbl_rows=-1, tbl_cols=-1):
+                print(household_patterns)
+                
+        return household_patterns
+
+
 

@@ -318,4 +318,4 @@ storage = DataStorage()
 
 if __name__ == "__main__":
     storage = DataStorage()
-    print(storage._processor.get_weekday_vs_weekend_patterns())
+    print(storage._processor.get_household_patterns())
