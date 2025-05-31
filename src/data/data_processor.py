@@ -761,8 +761,361 @@ class DataProcessor:
         if settings.DEBUG:
             with pl.Config(tbl_rows=-1, tbl_cols=-1):
                 print(household_patterns)
-                
+
         return household_patterns
 
+    @staticmethod
+    def _load_weather_data(file_path: Path) -> pl.DataFrame:
+        """
+        Load weather data from a CSV file into a Polars DataFrame.
 
+        Args:
+            file_path: Path to the weather data CSV file.
 
+        Returns:
+            Polars DataFrame containing processed weather data.
+
+        Raises:
+            ValueError: If the file cannot be loaded or is invalid.
+        """
+        try:
+            df = pl.read_csv(file_path)
+
+            # Convert time string to datetime
+            df = df.with_columns(
+                pl.col("time")
+                .str.to_datetime("%Y-%m-%d %H:%M:%S")
+                .dt.date()
+                .alias("date")
+            )
+
+            if settings.DEBUG:
+                print(f"Loaded weather data from {file_path.name}")
+
+            return df
+        except Exception as e:
+            raise ValueError(f"Error loading weather data from {file_path}: {str(e)}")
+
+    @staticmethod
+    def _process_temperature_energy_patterns(
+        energy_df: pl.DataFrame, weather_df: pl.DataFrame
+    ) -> pl.DataFrame:
+        """
+        Process energy consumption data and correlate it with temperature data.
+
+        This method joins daily energy consumption data with weather data to analyze
+        how temperature affects energy usage patterns throughout the year.
+
+        Args:
+            energy_df: Polars DataFrame containing energy consumption data with columns:
+                - day: Date string in format YYYY-MM-DD
+                - energy_median: Median energy consumption for each day
+                - energy_mean: Mean energy consumption for each day
+                - energy_max: Maximum energy consumption for each day
+                - energy_count: Number of data points in each day
+                - energy_std: Standard deviation of energy consumption
+                - energy_sum: Total energy consumption for each day
+                - energy_min: Minimum energy consumption for each day
+
+            weather_df: Polars DataFrame containing weather data with columns:
+                - date: Date in datetime format
+                - temperatureMin: Minimum temperature of the day in Celsius
+                - temperatureMax: Maximum temperature of the day in Celsius
+                - temperatureMean: Mean temperature of the day (calculated)
+
+        Returns:
+            Polars DataFrame with columns:
+                - year: Calendar year of the data (int)
+                - month: Month number (1-12) (int)
+                - month_name: Name of month (str)
+                - temp_bin: Temperature range bin (str)
+                - avg_temperature: Average temperature in that bin (float)
+                - energy_median: Average of daily median energy values (float)
+                - energy_mean: Average of daily mean energy values (float)
+                - energy_max: Maximum energy consumption (float)
+                - energy_count: Sum of daily count values (int)
+                - energy_std: Average of daily standard deviation values (float)
+                - energy_sum: Total energy consumption (float)
+                - energy_min: Minimum energy consumption (float)
+                - days_count: Number of days included in each temperature bin (int)
+        """
+        # Use lazy evaluation for query optimization
+        lazy_energy_df = energy_df.lazy()
+        lazy_weather_df = weather_df.lazy()
+
+        # Prepare energy data - convert day to date format
+        prepared_energy = lazy_energy_df.with_columns(
+            [
+                pl.col("day").str.to_date().alias("date"),
+                pl.col("day").str.to_date().dt.year().alias("year"),
+                pl.col("day").str.to_date().dt.month().alias("month"),
+            ]
+        )
+
+        # Prepare weather data - calculate mean temperature
+        prepared_weather = lazy_weather_df.with_columns(
+            [
+                ((pl.col("temperatureMax") + pl.col("temperatureMin")) / 2).alias(
+                    "temperatureMean"
+                )
+            ]
+        )
+
+        # Join energy and weather data on date
+        joined_df = prepared_energy.join(
+            prepared_weather.select(
+                "date", "temperatureMin", "temperatureMax", "temperatureMean"
+            ),
+            on="date",
+            how="inner",
+        )
+
+        # Create temperature bins
+        joined_df = joined_df.with_columns(
+            [
+                pl.when(pl.col("temperatureMean") < 0)
+                .then(pl.lit("Below 0°C"))
+                .when(pl.col("temperatureMean") < 5)
+                .then(pl.lit("0-5°C"))
+                .when(pl.col("temperatureMean") < 10)
+                .then(pl.lit("5-10°C"))
+                .when(pl.col("temperatureMean") < 15)
+                .then(pl.lit("10-15°C"))
+                .when(pl.col("temperatureMean") < 20)
+                .then(pl.lit("15-20°C"))
+                .when(pl.col("temperatureMean") < 25)
+                .then(pl.lit("20-25°C"))
+                .otherwise(pl.lit("Above 25°C"))
+                .alias("temp_bin"),
+                pl.when(pl.col("month") == 1)
+                .then(pl.lit("January"))
+                .when(pl.col("month") == 2)
+                .then(pl.lit("February"))
+                .when(pl.col("month") == 3)
+                .then(pl.lit("March"))
+                .when(pl.col("month") == 4)
+                .then(pl.lit("April"))
+                .when(pl.col("month") == 5)
+                .then(pl.lit("May"))
+                .when(pl.col("month") == 6)
+                .then(pl.lit("June"))
+                .when(pl.col("month") == 7)
+                .then(pl.lit("July"))
+                .when(pl.col("month") == 8)
+                .then(pl.lit("August"))
+                .when(pl.col("month") == 9)
+                .then(pl.lit("September"))
+                .when(pl.col("month") == 10)
+                .then(pl.lit("October"))
+                .when(pl.col("month") == 11)
+                .then(pl.lit("November"))
+                .when(pl.col("month") == 12)
+                .then(pl.lit("December"))
+                .alias("month_name"),
+            ]
+        )
+
+        # Group by year, month and temperature bin
+        result = (
+            joined_df.group_by(["year", "month", "month_name", "temp_bin"])
+            .agg(
+                avg_temperature=pl.col("temperatureMean").mean(),
+                energy_median=pl.col("energy_median").mean(),
+                energy_mean=pl.col("energy_mean").mean(),
+                energy_max=pl.col("energy_max").max(),
+                energy_count=pl.col("energy_count").sum(),
+                energy_std=pl.col("energy_std").mean(),
+                energy_sum=pl.col("energy_sum").sum(),
+                energy_min=pl.col("energy_min").min(),
+                days_count=pl.count(),
+            )
+            .sort(["year", "month", "temp_bin"])
+            .collect()
+        )
+
+        return result
+
+    @staticmethod
+    def _process_temperature_hourly_energy(
+        energy_df: pl.DataFrame, weather_hourly_df: pl.DataFrame
+    ) -> pl.DataFrame:
+        """
+        Process hourly energy consumption data and correlate it with hourly temperature data.
+
+        This method joins half-hourly energy consumption data with hourly weather data to analyze
+        how temperature affects energy usage patterns throughout the day.
+
+        Args:
+            energy_df: Polars DataFrame containing half-hourly energy consumption data with columns:
+                - LCLid: Customer identifier
+                - day: Date string in format YYYY-MM-DD
+                - hh_0 through hh_47: Half-hourly energy readings (48 columns)
+
+            weather_hourly_df: Polars DataFrame containing hourly weather data with columns:
+                - time: Time string in format YYYY-MM-DD HH:MM:SS
+                - temperature: Hourly temperature in Celsius
+                - humidity: Hourly humidity
+
+        Returns:
+            Polars DataFrame with columns:
+                - hour: Hour of day (0-23) (int)
+                - temp_bin: Temperature range bin (str)
+                - avg_temperature: Average temperature in that bin (float)
+                - avg_humidity: Average humidity in that bin (float)
+                - energy: Average energy consumption (float)
+                - count: Number of data points in each bin (int)
+        """
+        # Use lazy evaluation for query optimization
+        lazy_energy_df = energy_df.lazy()
+        lazy_weather_df = weather_hourly_df.lazy()
+
+        # Extract date and hour from weather data
+        weather_prep = lazy_weather_df.with_columns(
+            [
+                pl.col("time")
+                .str.to_datetime("%Y-%m-%d %H:%M:%S")
+                .dt.date()
+                .alias("date"),
+                pl.col("time")
+                .str.to_datetime("%Y-%m-%d %H:%M:%S")
+                .dt.hour()
+                .alias("hour"),
+            ]
+        )
+
+        # Convert half-hourly energy data to hourly (by summing consecutive half-hours)
+        hourly_cols = [
+            (
+                pl.col(f"hh_{hour * 2}").fill_null(0)
+                + pl.col(f"hh_{hour * 2 + 1}").fill_null(0)
+            ).alias(f"h_{hour}")
+            for hour in range(24)
+        ]
+
+        energy_prep = (
+            lazy_energy_df.with_columns(pl.col("day").str.to_date().alias("date"))
+            .select("date", *hourly_cols)
+            .melt(
+                id_vars=["date"],
+                value_vars=[f"h_{hour}" for hour in range(24)],
+                variable_name="hour_str",
+                value_name="energy",
+            )
+            .with_columns(
+                pl.col("hour_str").str.replace("h_", "").cast(pl.Int32).alias("hour")
+            )
+            .drop("hour_str")
+        )
+
+        # Join energy and weather data on date and hour
+        joined_df = energy_prep.join(
+            weather_prep.select("date", "hour", "temperature", "humidity"),
+            on=["date", "hour"],
+            how="inner",
+        )
+
+        # Create temperature bins
+        joined_df = joined_df.with_columns(
+            pl.when(pl.col("temperature") < 0)
+            .then(pl.lit("Below 0°C"))
+            .when(pl.col("temperature") < 5)
+            .then(pl.lit("0-5°C"))
+            .when(pl.col("temperature") < 10)
+            .then(pl.lit("5-10°C"))
+            .when(pl.col("temperature") < 15)
+            .then(pl.lit("10-15°C"))
+            .when(pl.col("temperature") < 20)
+            .then(pl.lit("15-20°C"))
+            .when(pl.col("temperature") < 25)
+            .then(pl.lit("20-25°C"))
+            .otherwise(pl.lit("Above 25°C"))
+            .alias("temp_bin")
+        )
+
+        # Group by hour and temperature bin
+        result = (
+            joined_df.group_by(["hour", "temp_bin"])
+            .agg(
+                avg_temperature=pl.col("temperature").mean(),
+                avg_humidity=pl.col("humidity").mean(),
+                energy=pl.col("energy").mean(),
+                count=pl.count(),
+            )
+            .sort(["hour", "temp_bin"])
+            .collect()
+        )
+
+        return result
+
+    def get_temperature_energy_patterns(self) -> pl.DataFrame:
+        """
+        Process energy consumption data to analyze how it correlates with temperature.
+
+        This method serves as a pipeline that:
+        1. Loads daily energy data from the configured directory (DAILYBLOCKS_DIR)
+        2. Loads daily weather data from the configured file (WEATHER_DAILY_FILE)
+        3. Processes the data to extract energy consumption patterns by temperature ranges
+        4. Optionally displays debug information if enabled in settings
+
+        Returns:
+            Polars DataFrame containing temperature-energy statistics with columns:
+            - year: Calendar year of the data (int)
+            - month: Month number (1-12) (int)
+            - month_name: Name of month (str)
+            - temp_bin: Temperature range bin (str)
+            - avg_temperature: Average temperature in that bin (float)
+            - energy_median: Average of daily median energy values (float)
+            - energy_mean: Average of daily mean energy values (float)
+            - energy_max: Maximum energy consumption (float)
+            - energy_count: Sum of daily count values (int)
+            - energy_std: Average of daily standard deviation values (float)
+            - energy_sum: Total energy consumption (float)
+            - energy_min: Minimum energy consumption (float)
+            - days_count: Number of days included in each temperature bin (int)
+
+        Raises:
+            ValueError: If no valid CSV files are found in the configured directories or files
+        """
+        energy_data = self._load_data_from_dir(settings.DAILYBLOCKS_DIR)
+        weather_data = self._load_weather_data(settings.WEATHER_DAILY_FILE)
+        temperature_patterns = self._process_temperature_energy_patterns(
+            energy_data, weather_data
+        )
+
+        if settings.DEBUG:
+            with pl.Config(tbl_rows=-1, tbl_cols=-1):
+                print(temperature_patterns)
+
+        return temperature_patterns
+
+    def get_temperature_hourly_patterns(self) -> pl.DataFrame:
+        """
+        Process hourly energy consumption data to analyze how it correlates with hourly temperature.
+
+        This method serves as a pipeline that:
+        1. Loads half-hourly energy data from the configured directory (HHBLOCKS_DIR)
+        2. Loads hourly weather data from the configured file (WEATHER_HOURLY_FILE)
+        3. Processes the data to extract hourly energy consumption patterns by temperature ranges
+        4. Optionally displays debug information if enabled in settings
+
+        Returns:
+            Polars DataFrame containing hourly temperature-energy statistics with columns:
+            - hour: Hour of day (0-23) (int)
+            - temp_bin: Temperature range bin (str)
+            - avg_temperature: Average temperature in that bin (float)
+            - avg_humidity: Average humidity in that bin (float)
+            - energy: Average energy consumption (float)
+            - count: Number of data points in each bin (int)
+
+        Raises:
+            ValueError: If no valid CSV files are found in the configured directories or files
+        """
+        energy_data = self._load_data_from_dir(settings.HHBLOCKS_DIR)
+        weather_data = self._load_weather_data(settings.WEATHER_HOURLY_FILE)
+        hourly_patterns = self._process_temperature_hourly_energy(energy_data, weather_data)
+
+        if settings.DEBUG:
+            with pl.Config(tbl_rows=-1, tbl_cols=-1):
+                print(hourly_patterns)
+
+        return hourly_patterns

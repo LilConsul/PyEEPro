@@ -350,4 +350,5 @@ storage = DataStorage()
 
 if __name__ == "__main__":
     storage = DataStorage()
-    print(storage.get_household_patterns())
+    print(storage._processor.get_temperature_energy_patterns())
+    print(storage._processor.get_temperature_hourly_patterns())
