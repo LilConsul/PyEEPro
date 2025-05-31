@@ -32,7 +32,7 @@ def render_temperature_energy_plot(temperature_data):
     with col2:
         chart_type = st.radio(
             "Chart type:",
-            options=["Line chart", "Scatter plot", "Box plot", "Month comparison"],
+            options=["Line chart", "Box plot", "Month comparison"],
             horizontal=True,
             key="temp_energy_chart_type",
         )
@@ -52,22 +52,6 @@ def render_temperature_energy_plot(temperature_data):
                 "avg_temperature": "Average Temperature (°C)",
                 metric: f"{metric.replace('energy_', '').capitalize()} Energy (kWh)"
             }
-        )
-    elif chart_type == "Scatter plot":
-        fig = px.scatter(
-            pandas_df,
-            x="avg_temperature",
-            y=metric,
-            color="month_name" if "month_name" in pandas_df.columns else None,
-            size="energy_count" if "energy_count" in pandas_df.columns else None,
-            hover_data=["temp_bin"] if "temp_bin" in pandas_df.columns else None,
-            title=f"Temperature vs {metric.replace('energy_', '').capitalize()} Energy Consumption",
-            labels={
-                "avg_temperature": "Average Temperature (°C)",
-                metric: f"{metric.replace('energy_', '').capitalize()} Energy (kWh)"
-            },
-            opacity=0.7,
-            trendline="ols" if len(pandas_df) > 5 else None,
         )
     elif chart_type == "Box plot":
         fig = px.box(
@@ -112,7 +96,7 @@ def render_temperature_energy_plot(temperature_data):
             return
 
     fig.update_layout(
-        xaxis_title="Average Temperature (°C)" if chart_type not in ["Box plot", "Month comparison"] else ("Temperature Bin" if chart_type == "Box plot" else "Month"),
+        xaxis_title="Average Temperature (°C)" if chart_type == "Line chart" else ("Temperature Bin" if chart_type == "Box plot" else "Month"),
         yaxis_title=f"{metric.replace('energy_', '').capitalize()} Energy Consumption (kWh)",
         legend_title="Month" if "month_name" in pandas_df.columns and chart_type != "Month comparison" else "Temperature Bin" if chart_type == "Month comparison" else None
     )
@@ -406,10 +390,9 @@ def render_weather_tab():
     """)
 
     # Create subtabs for daily and hourly analysis
-    daily_tab, hourly_tab, insights_tab = st.tabs([
+    daily_tab, hourly_tab = st.tabs([
         "📆 Daily Temperature Impact",
-        "⏰ Hourly Temperature Impact",
-        "💡 Weather Insights"
+        "⏰ Hourly Temperature Impact"
     ])
 
     with daily_tab:
@@ -448,115 +431,3 @@ def render_weather_tab():
         with st.expander("View Hourly Temperature Data", expanded=False):
             st.dataframe(temp_hourly_data, use_container_width=True)
 
-    with insights_tab:
-        st.markdown("### Weather Impact Insights")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.markdown("#### Temperature Impact Summary")
-
-            with st.spinner("Analyzing temperature patterns..."):
-                # Get temperature data for analysis
-                temp_data = storage.get_temperature_energy_patterns(years=selected_years)
-
-                if not temp_data.is_empty():
-                    # Convert to pandas for easier analysis
-                    temp_df = temp_data.to_pandas()
-
-                    # Calculate key statistics
-                    min_temp = temp_df["avg_temperature"].min()
-                    max_temp = temp_df["avg_temperature"].max()
-                    avg_temp = temp_df["avg_temperature"].mean()
-
-                    # Find temperature with highest energy consumption
-                    high_energy_temp = temp_df.loc[temp_df["energy_mean"].idxmax()]["avg_temperature"]
-
-                    # Create gauge chart for temperature range
-                    fig = go.Figure(go.Indicator(
-                        mode = "gauge+number",
-                        value = avg_temp,
-                        title = {'text': "Average Temperature (°C)"},
-                        gauge = {
-                            'axis': {'range': [min_temp, max_temp]},
-                            'bar': {'color': "darkblue"},
-                            'steps': [
-                                {'range': [min_temp, min_temp + (max_temp-min_temp)/3], 'color': "lightblue"},
-                                {'range': [min_temp + (max_temp-min_temp)/3, min_temp + 2*(max_temp-min_temp)/3], 'color': "royalblue"},
-                                {'range': [min_temp + 2*(max_temp-min_temp)/3, max_temp], 'color': "darkblue"}
-                            ],
-                        }
-                    ))
-
-                    st.plotly_chart(fig, use_container_width=True)
-
-                    st.info(f"Temperature with highest energy consumption: {high_energy_temp:.1f}°C")
-
-        with col2:
-            st.markdown("#### Seasonal Temperature Pattern")
-
-            # Create seasonal temperature visualization
-            with st.spinner("Creating seasonal temperature chart..."):
-                if "month" in temp_data.columns and "avg_temperature" in temp_data.columns:
-                    # Group by month and calculate average temperature
-                    monthly_temp = temp_data.group_by("month").agg([
-                        pl.mean("avg_temperature").alias("avg_temp"),
-                        pl.mean("energy_mean").alias("avg_energy")
-                    ]).sort("month")
-
-                    # Convert to pandas
-                    monthly_df = monthly_temp.to_pandas()
-
-                    # Map month numbers to names
-                    month_names = {
-                        1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr", 5: "May", 6: "Jun",
-                        7: "Jul", 8: "Aug", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec"
-                    }
-                    monthly_df["month_name"] = monthly_df["month"].map(month_names)
-
-                    # Create dual-axis chart
-                    fig = go.Figure()
-
-                    # Add temperature line
-                    fig.add_trace(go.Scatter(
-                        x=monthly_df["month_name"],
-                        y=monthly_df["avg_temp"],
-                        name="Temperature",
-                        line=dict(color="red", width=3)
-                    ))
-
-                    # Add energy bar
-                    fig.add_trace(go.Bar(
-                        x=monthly_df["month_name"],
-                        y=monthly_df["avg_energy"],
-                        name="Energy",
-                        marker_color="royalblue",
-                        opacity=0.7
-                    ))
-
-                    # Set up dual y-axes
-                    fig.update_layout(
-                        title="Monthly Temperature and Energy Consumption",
-                        yaxis=dict(title="Average Temperature (°C)"),
-                        yaxis2=dict(
-                            title="Average Energy (kWh)",
-                            overlaying="y",
-                            side="right"
-                        ),
-                        legend=dict(x=0.01, y=0.99, bgcolor="rgba(255,255,255,0.8)"),
-                        xaxis=dict(title="Month")
-                    )
-
-                    st.plotly_chart(fig, use_container_width=True)
-
-        # Weather vs energy consumption insights
-        st.markdown("#### Energy Consumption Recommendations")
-
-        st.markdown("""
-        Based on temperature data analysis, here are some recommendations:
-        
-        1. **Peak Temperature Management**: Energy consumption increases significantly at temperature extremes
-        2. **Time-of-Day Adjustment**: Schedule high-energy activities during optimal temperature periods
-        3. **Seasonal Planning**: Anticipate seasonal temperature variations for energy usage planning
-        4. **Monthly Patterns**: Monitor monthly temperature patterns to predict energy consumption trends
-        """)
