@@ -1,6 +1,7 @@
 import streamlit as st
 from data import storage
-from app.utils import create_energy_line_plot, render_years
+import polars as pl
+from app.utils import create_line_plot, render_years, create_bar_chart
 
 
 def render_hourly_plot(hourly_data):
@@ -23,7 +24,7 @@ def render_hourly_plot(hourly_data):
             "Display view:", options=["Aggregated", "By Year"], horizontal=True
         )
 
-    fig = create_energy_line_plot(
+    fig = create_line_plot(
         data=hourly_data,
         metric=metric,
         display_type=display_type,
@@ -86,7 +87,7 @@ def render_daily_plot(daily_data):
         st.error("No valid day of week column found in the data")
         return
 
-    fig = create_energy_line_plot(
+    fig = create_line_plot(
         data=daily_data,
         metric=metric,
         display_type=display_type,
@@ -126,7 +127,7 @@ def render_weekly_plot(weekly_data):
             key="weekly_display_type",
         )
 
-    fig = create_energy_line_plot(
+    fig = create_line_plot(
         data=weekly_data,
         metric=metric,
         display_type=display_type,
@@ -143,7 +144,7 @@ def render_weekly_plot(weekly_data):
 
 
 def render_seasonal_plot(seasonal_data):
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         metric = st.selectbox(
             "Select energy metric:",
@@ -161,24 +162,99 @@ def render_seasonal_plot(seasonal_data):
     with col2:
         display_type = st.radio(
             "Display view:",
-            options=["Aggregated", "By Year"],
+            options=["Line Chart", "Bar Chart"],
             horizontal=True,
             key="seasonal_display_type",
         )
+    with col3:
+        group_option = st.selectbox(
+            "Group by:",
+            options=["Aggregated", "By Year"],
+            index=1 if display_type == "Bar Chart" else 0,
+            key="seasonal_group_option",
+        )
 
-    fig = create_energy_line_plot(
-        data=seasonal_data,
-        metric=metric,
-        display_type=display_type,
-        x_field="week",
-        x_label="Week of Season",
-        time_period="Seasonal",
-        sort_by=["season", "week"],
-        color_field="season",
-        group_fields=["season", "week"],
-        separate_years=True,
-        extra_layout_options={
-            "xaxis": dict(tickmode="linear", tick0=1, dtick=1, range=[1, 12])
+    if group_option == "Aggregated":
+        x_field = "season"
+        color_field = "year"
+    else:  # By Year
+        x_field = "year"
+        color_field = "season"
+
+    if display_type == "Line Chart":
+        fig = create_line_plot(
+            data=seasonal_data,
+            metric=metric,
+            display_type=group_option,
+            x_field="week",
+            x_label="Week of Season",
+            time_period="Seasonal",
+            sort_by=["season", "week"],
+            color_field="season",
+            group_fields=["season", "week"],
+            separate_years=True,
+            extra_layout_options={
+                "xaxis": dict(tickmode="linear", tick0=1, dtick=1, range=[1, 13])
+            },
+        )
+
+    else:  # Bar Chart option
+        yearly_data = (
+            seasonal_data.group_by(["year", "season"])
+            .agg(**{f"{metric}_avg": pl.col(metric).mean()})
+            .sort(["year", "season"])
+            .to_pandas()
+        )
+
+        fig = create_bar_chart(
+            df=yearly_data,
+            x_field=x_field,
+            y_field=f"{metric}_avg",
+            y_display=metric.replace("energy_", "").capitalize(),
+            color_field=color_field,
+            title=f"Seasonal Energy Consumption by {x_field.capitalize()}",
+            extra_options={
+                "barmode": "group",
+                "xaxis": dict(tickmode="linear"),
+            },
+        )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_weekday_vs_weekend_plot(weekday_weekend_data):
+    metric = st.selectbox(
+        "Select energy metric:",
+        options=[
+            "energy_mean",
+            "energy_median",
+            "energy_sum",
+            "energy_std",
+            "energy_max",
+        ],
+        format_func=lambda x: x.replace("energy_", "").capitalize(),
+        index=0,
+        key="weekday_weekend_metric",
+    )
+
+    chart_data = (
+        weekday_weekend_data.group_by(["year", "is_weekend"])
+        .agg(**{f"{metric}_avg": pl.col(metric).mean()})
+        .sort(["year", "is_weekend"])
+        .to_pandas()
+    )
+
+    fig = create_bar_chart(
+        df=chart_data,
+        x_field="year",
+        y_field=f"{metric}_avg",
+        y_display=metric.replace("energy_", "").capitalize(),
+        color_field="is_weekend",
+        title="Weekday vs Weekend Energy Consumption by Year",
+        orientation="h",
+        extra_options={
+            "barmode": "group",
+            "xaxis": dict(tickmode="linear")
         },
     )
 
@@ -238,3 +314,14 @@ def render_eda_tab():
         with st.expander("View Dataframe", expanded=False):
             st.dataframe(seasonal_data)
         st.divider()
+
+        # Weekday vs Weekend Patterns Section
+        st.markdown(f"### Weekday vs Weekend Patterns | Year {render_years()}")
+        with st.spinner("Loading weekday vs weekend patterns..."):
+            weekday_weekend_data = storage.get_weekday_vs_weekend_patterns(
+                years=filters.get("years", None),
+            )
+        render_weekday_vs_weekend_plot(weekday_weekend_data)
+        with st.expander("View Dataframe", expanded=False):
+            st.dataframe(weekday_weekend_data)
+

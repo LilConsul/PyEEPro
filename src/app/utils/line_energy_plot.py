@@ -268,7 +268,7 @@ def apply_layout_options(fig, extra_options=None):
     return fig
 
 
-def create_energy_line_plot(
+def create_line_plot(
     data,
     metric,
     display_type,
