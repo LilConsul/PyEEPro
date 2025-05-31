@@ -292,7 +292,7 @@ class DataStorage:
         )
 
     def get_temperature_energy_patterns(
-        self, years: List[int] | None = None, cols: List[str] | None = None
+        self, cols: List[str] | None = None
     ) -> pl.DataFrame:
         """
         Retrieve temperature-energy correlation data from cache or process if not available.
@@ -318,12 +318,11 @@ class DataStorage:
         return self._get_patterns(
             "temperature_energy_patterns",
             self._processor.get_temperature_energy_patterns,
-            years,
-            cols,
+            cols=cols,
         )
 
     def get_temperature_hourly_patterns(
-        self, years: List[int] | None = None, cols: List[str] | None = None
+        self, cols: List[str] | None = None
     ) -> pl.DataFrame:
         """
         Retrieve hourly temperature impact patterns from cache or process if not available.
@@ -348,8 +347,7 @@ class DataStorage:
         return self._get_patterns(
             "temperature_hourly_patterns",
             self._processor.get_temperature_hourly_patterns,
-            years,
-            cols,
+            cols=cols,
         )
 
     def remove_cache(self, filename: str) -> None:
