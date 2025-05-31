@@ -225,6 +225,40 @@ class DataStorage:
             "seasonal_patterns", self._processor.get_seasonal_patterns, years, cols
         )
 
+    def get_weekday_vs_weekend_patterns(
+        self, years: List[int] | None = None, cols: List[str] | None = None
+    ) -> pl.DataFrame:
+        """
+        Retrieve weekday vs weekend patterns from cache or process if not available.
+
+        This method provides access to energy consumption patterns comparing
+        weekdays and weekends, with optional filtering by years and columns.
+        The data is cached to avoid redundant processing.
+
+        Args:
+            years: Optional list of years to filter by (e.g., [2013, 2014])
+            cols: Optional list of columns to select (e.g., ["year", "day_type", "energy_mean"])
+
+        Returns:
+            Polars DataFrame containing weekday/weekend energy consumption statistics with columns:
+            - year: Calendar year of the data (int)
+            - is_weekend: Boolean flag (True for weekend days, False for weekdays) (bool)
+            - energy_median: Average of daily median energy values (float)
+            - energy_mean: Average of daily mean energy values (float)
+            - energy_max: Maximum energy consumption (float)
+            - energy_count: Sum of daily count values (int)
+            - energy_std: Average of daily standard deviation values (float)
+            - energy_sum: Total energy consumption (float)
+            - energy_min: Minimum energy consumption (float)
+            - days_count: Number of days included in each group (int)
+        """
+        return self._get_patterns(
+            "weekday_vs_weekend_patterns",
+            self._processor.get_weekday_vs_weekend_patterns,
+            years,
+            cols,
+        )
+
     def remove_cache(self, filename: str) -> None:
         """
         Remove a specific cache file and clear its in-memory representation.
@@ -284,4 +318,4 @@ storage = DataStorage()
 
 if __name__ == "__main__":
     storage = DataStorage()
-    print(storage._processor.get_seasonal_patterns())
+    print(storage._processor.get_weekday_vs_weekend_patterns())

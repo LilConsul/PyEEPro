@@ -7,6 +7,7 @@ class Settings:
     DATA_DIR = ALL_DATA_DIR / "smart-meters-in-london"
     HHBLOCKS_DIR = DATA_DIR / "hhblock_dataset" / "hhblock_dataset"
     DAILYBLOCKS_DIR = DATA_DIR / "daily_dataset" / "daily_dataset"
+    HOLIDAYS_FILE = DATA_DIR / "uk_bank_holidays.csv"
     CACHE_DIR = ALL_DATA_DIR / "cache"
     DEBUG = True
 
