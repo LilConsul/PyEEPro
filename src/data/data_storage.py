@@ -159,10 +159,7 @@ class DataStorage:
                 - days_count: Number of days in each group (int)
         """
         return self._get_patterns(
-            "daily_patterns",
-            self._processor.get_daily_patterns,
-            years,
-            cols,
+            "daily_patterns", self._processor.get_daily_patterns, years, cols
         )
 
     def get_weekly_patterns(
@@ -193,10 +190,39 @@ class DataStorage:
                 - weeks_count: Number of days in each weekly group (int)
         """
         return self._get_patterns(
-            "weekly_patterns",
-            self._processor.get_weekly_patterns,
-            years,
-            cols,
+            "weekly_patterns", self._processor.get_weekly_patterns, years, cols
+        )
+
+    def get_seconal_patterns(
+        self, years: List[int] | None = None, cols: List[str] | None = None
+    ) -> pl.DataFrame:
+        """
+        Retrieve seconal patterns from cache or process if not available.
+
+        This method provides access to seconal energy consumption patterns,
+        with optional filtering by years and columns. The data is cached
+        to avoid redundant processing.
+
+        Args:
+            years: Optional list of years to filter by (e.g., [2013, 2014])
+            cols: Optional list of columns to select (e.g., ["year", "seconal", "energy_mean"])
+
+        Returns:
+            pl.DataFrame: DataFrame with seasonal energy consumption statistics with columns:
+            - year: Calendar year of the data (int)
+            - season: Season name (Winter, Spring, Summer, Fall) (str)
+            - week: Week number within the season (1-12) (int)
+            - energy_median: Average of daily median energy values for that season (float)
+            - energy_mean: Average of daily mean energy values for that season (float)
+            - energy_max: Maximum energy consumption for that season (float)
+            - energy_count: Sum of daily count values for that season (int)
+            - energy_std: Average of daily standard deviation values for that season (float)
+            - energy_sum: Total energy consumption for that season (float)
+            - energy_min: Minimum energy consumption for that season (float)
+            - days_count: Number of days included in each season group (int)
+        """
+        return self._get_patterns(
+            "seconal_patterns", self._processor.get_seconal_patterns, years, cols
         )
 
     def remove_cache(self, filename: str) -> None:
@@ -258,4 +284,5 @@ storage = DataStorage()
 
 if __name__ == "__main__":
     storage = DataStorage()
-    storage._processor.get_seconal_patterns()
+    storage.get_seconal_patterns()
+    storage.get_weekly_patterns()
