@@ -25,6 +25,9 @@ def render_hourly_plot(hourly_data):
             "Display view:", options=["Aggregated", "By Year"], horizontal=True
         )
 
+    # Define the unit for energy measurements
+    energy_unit = "kWh"
+
     if display_type == "Aggregated":
         hourly_agg = (
             hourly_data.group_by("hour")
@@ -40,9 +43,9 @@ def render_hourly_plot(hourly_data):
             y=metric,
             labels={
                 "hour": "Hour of Day",
-                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption",
+                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
             },
-            title=f"Hourly {metric.replace('energy_', '').capitalize()} Energy Consumption",
+            title=f"Hourly {metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
             markers=True,
         )
 
@@ -60,15 +63,168 @@ def render_hourly_plot(hourly_data):
             color="year",
             labels={
                 "hour": "Hour of Day",
-                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption",
+                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
                 "year": "Year",
             },
-            title=f"Hourly {metric.replace('energy_', '').capitalize()} Energy Consumption by Year",
+            title=f"Hourly {metric.replace('energy_', '').capitalize()} Energy Consumption by Year ({energy_unit})",
             markers=True,
         )
 
     fig.update_layout(
         xaxis=dict(tickmode="linear", tick0=0, dtick=1, range=[0, 23]),
+        hovermode="x unified",
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_daily_plot(daily_data):
+    col1, col2 = st.columns(2)
+    with col1:
+        metric = st.selectbox(
+            "Select energy metric:",
+            options=[
+                "energy_mean",
+                "energy_median",
+                "energy_sum",
+                "energy_std",
+                "energy_max",
+            ],
+            format_func=lambda x: x.replace("energy_", "").capitalize(),
+            index=0,
+            key="daily_metric",
+        )
+    with col2:
+        display_type = st.radio(
+            "Display view:",
+            options=["Aggregated", "By Year"],
+            horizontal=True,
+            key="daily_display_type",
+        )
+
+    # Define the unit for energy measurements
+    energy_unit = "kWh"
+
+    if display_type == "Aggregated":
+        daily_agg = (
+            daily_data.group_by("weekday", "weekday_name")
+            .agg(**{f"{metric}": pl.col(metric).mean()})
+            .sort("weekday")
+        )
+
+        df = daily_agg.to_pandas()
+
+        fig = px.line(
+            df,
+            x="weekday_name",
+            y=metric,
+            labels={
+                "weekday_name": "Day of Week",
+                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
+            },
+            title=f"Daily {metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
+            markers=True,
+        )
+
+    else:  # By Year
+        df = (
+            daily_data.select(["year", "weekday", "weekday_name", metric])
+            .sort(["year", "weekday"])
+            .to_pandas()
+        )
+
+        fig = px.line(
+            df,
+            x="weekday_name",
+            y=metric,
+            color="year",
+            labels={
+                "weekday_name": "Day of Week",
+                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
+                "year": "Year",
+            },
+            title=f"Daily {metric.replace('energy_', '').capitalize()} Energy Consumption by Year ({energy_unit})",
+            markers=True,
+        )
+
+    fig.update_layout(
+        hovermode="x unified",
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_weekly_plot(weekly_data):
+    col1, col2 = st.columns(2)
+    with col1:
+        metric = st.selectbox(
+            "Select energy metric:",
+            options=[
+                "energy_mean",
+                "energy_median",
+                "energy_sum",
+                "energy_std",
+                "energy_max",
+            ],
+            format_func=lambda x: x.replace("energy_", "").capitalize(),
+            index=0,
+            key="weekly_metric",
+        )
+    with col2:
+        display_type = st.radio(
+            "Display view:",
+            options=["Aggregated", "By Year"],
+            horizontal=True,
+            key="weekly_display_type",
+        )
+
+    # Define the unit for energy measurements
+    energy_unit = "kWh"
+
+    if display_type == "Aggregated":
+        weekly_agg = (
+            weekly_data.group_by("week")
+            .agg(**{f"{metric}": pl.col(metric).mean()})
+            .sort("week")
+        )
+
+        df = weekly_agg.to_pandas()
+
+        fig = px.line(
+            df,
+            x="week",
+            y=metric,
+            labels={
+                "week": "Week of Year",
+                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
+            },
+            title=f"Weekly {metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
+            markers=True,
+        )
+
+    else:  # By Year
+        df = (
+            weekly_data.select(["year", "week", metric])
+            .sort(["year", "week"])
+            .to_pandas()
+        )
+
+        fig = px.line(
+            df,
+            x="week",
+            y=metric,
+            color="year",
+            labels={
+                "week": "Week of Year",
+                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
+                "year": "Year",
+            },
+            title=f"Weekly {metric.replace('energy_', '').capitalize()} Energy Consumption by Year ({energy_unit})",
+            markers=True,
+        )
+
+    fig.update_layout(
+        xaxis=dict(tickmode="linear", tick0=1, dtick=4, range=[1, 53]),
         hovermode="x unified",
     )
 
@@ -109,10 +265,23 @@ def render_eda_tab():
         st.divider()
 
         # Daily Patterns Section
-        st.markdown("### Daily Patterns")
+        st.markdown(f"### Daily Patterns | Year {render_years()}")
+        with st.spinner("Loading daily patterns..."):
+            daily_data = storage.get_daily_patterns(
+                years=filters.get("years", None),
+            )
+        render_daily_plot(daily_data)
+        with st.expander("View Dataframe", expanded=False):
+            st.dataframe(daily_data)
+        st.divider()
 
-        with st.expander("Weekday vs Weekend Comparison"):
-            st.markdown("### Weekday/Weekend Comparison")
-
-        with st.expander("Seasonal Variations"):
-            st.markdown("### Seasonal Variations")
+        # Weekly Patterns Section
+        st.markdown(f"### Weekly Patterns | Year {render_years()}")
+        with st.spinner("Loading weekly patterns..."):
+            weekly_data = storage.get_weekly_patterns(
+                years=filters.get("years", None),
+            )
+        render_weekly_plot(weekly_data)
+        with st.expander("View Dataframe", expanded=False):
+            st.dataframe(weekly_data)
+        st.divider()
