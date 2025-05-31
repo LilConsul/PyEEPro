@@ -1,9 +1,9 @@
-import polars as pl
 import streamlit as st
+import polars as pl
 import plotly.express as px
 
 
-def create_energy_plot(
+def create_energy_line_plot(
     data,
     metric,
     display_type,
@@ -14,6 +14,8 @@ def create_energy_plot(
     group_fields=None,
     extra_layout_options=None,
     energy_unit="kWh",
+    color_field=None,
+    separate_years=False,
 ):
     """
     Generic function to create energy consumption plots
@@ -29,6 +31,8 @@ def create_energy_plot(
         group_fields: Fields to group by for aggregation
         extra_layout_options: Additional plotly layout options
         energy_unit: Unit of energy measurement (default is "kWh")
+        color_field: Field to use for color differentiation (for Aggregated view)
+        separate_years: If True, create a facet plot with separate subplots by year
     """
     metric_display = metric.replace("energy_", "").capitalize()
 
@@ -65,22 +69,39 @@ def create_energy_plot(
 
         df = agg_data.to_pandas()
 
-        fig = px.line(
-            df,
-            x=x_field,
-            y=metric,
-            labels={
-                x_field: x_label,
-                metric: f"{metric_display} Energy Consumption ({energy_unit})",
-            },
-            title=f"{time_period} {metric_display} Energy Consumption ({energy_unit})",
-            markers=True,
-        )
+        # Use color_field if provided, otherwise no color differentiation
+        if color_field and color_field in df.columns:
+            fig = px.line(
+                df,
+                x=x_field,
+                y=metric,
+                color=color_field,
+                labels={
+                    x_field: x_label,
+                    metric: f"{metric_display} Energy Consumption ({energy_unit})",
+                    color_field: color_field.capitalize(),
+                },
+                title=f"{time_period} {metric_display} Energy Consumption ({energy_unit})",
+                markers=True,
+            )
+        else:
+            fig = px.line(
+                df,
+                x=x_field,
+                y=metric,
+                labels={
+                    x_field: x_label,
+                    metric: f"{metric_display} Energy Consumption ({energy_unit})",
+                },
+                title=f"{time_period} {metric_display} Energy Consumption ({energy_unit})",
+                markers=True,
+            )
     else:  # By Year
-        # Select necessary columns and sort
         select_fields = ["year", x_field, metric]
-        if sort_by:
+        if sort_by and not isinstance(sort_by, list) and sort_by not in select_fields:
             select_fields.append(sort_by)
+        if color_field:
+            select_fields.append(color_field)
 
         if isinstance(x_field, list) or group_fields:
             select_fields = list(
@@ -89,6 +110,7 @@ def create_energy_plot(
                     + (group_fields or [])
                     + ([x_field] if isinstance(x_field, str) else x_field)
                     + [metric]
+                    + ([color_field] if color_field else [])
                 )
             )
 
@@ -101,25 +123,51 @@ def create_energy_plot(
             try:
                 df = df.sort(sort_by)
             except Exception as e:
-                st.warning(f"{df=} Error sorting data: {e}")
+                st.warning(f"Error sorting data: {e}")
 
         df = df.to_pandas()
 
-        fig = px.line(
-            df,
-            x=x_field,
-            y=metric,
-            color="year",
-            labels={
-                x_field: x_label,
-                metric: f"{metric_display} Energy Consumption ({energy_unit})",
-                "year": "Year",
-            },
-            title=f"{time_period} {metric_display} Energy Consumption by Year ({energy_unit})",
-            markers=True,
-        )
+        # Check if we should create a facet plot with separate years
+        if separate_years and time_period == "Seasonal":
+            years = sorted(df["year"].unique())
+            num_years = len(years)
+            num_cols = min(3, num_years)  # Max 3 columns
 
-    # Apply basic layout
+            fig = px.line(
+                df,
+                x=x_field,
+                y=metric,
+                color=color_field if color_field else None,
+                facet_col="year",
+                facet_col_wrap=num_cols,
+                labels={
+                    x_field: x_label,
+                    metric: f"{metric_display} Energy Consumption ({energy_unit})",
+                    color_field: color_field.capitalize() if color_field else None,
+                },
+                title=f"{time_period} {metric_display} Energy Consumption by Year ({energy_unit})",
+                markers=True,
+            )
+
+            fig.update_yaxes(matches=None)  # Allow different y-axis scales
+            fig.for_each_annotation(
+                lambda a: a.update(text=a.text.split("=")[-1])
+            )  # Simplify titles
+        else:
+            fig = px.line(
+                df,
+                x=x_field,
+                y=metric,
+                color="year",
+                labels={
+                    x_field: x_label,
+                    metric: f"{metric_display} Energy Consumption ({energy_unit})",
+                    "year": "Year",
+                },
+                title=f"{time_period} {metric_display} Energy Consumption by Year ({energy_unit})",
+                markers=True,
+            )
+
     layout_options = {"hovermode": "x unified"}
 
     if extra_layout_options:
