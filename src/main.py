@@ -36,11 +36,6 @@ def initialize_session_state():
             "initialization_complete": False,
         }
 
-    if "filters_turned_on" not in st.session_state:
-        st.session_state.filters_turned_on = {
-            "years": True,
-        }
-
     if "first_run" not in st.session_state:
         st.session_state.first_run = True
 

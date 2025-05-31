@@ -1,5 +1,4 @@
 import streamlit as st
-import polars as pl
 from data import storage
 from app.utils import create_line_plot, render_years, create_bar_chart
 
@@ -68,16 +67,14 @@ def render_daily_plot(daily_data):
     available_cols = daily_data.columns
 
     x_field = None
-    sort_field = None
-    group_fields = None
 
     # Choose appropriate x field based on what's available
+    # Yehor made some refactoring, now I do this :)
     if "weekday_name" in available_cols:
         x_field = "weekday_name"
     elif "day_of_week" in available_cols:
         x_field = "day_of_week"
     else:
-        # Fallback to integer weekday if no name column exists
         for col in ["weekday", "day"]:
             if col in available_cols:
                 x_field = col
@@ -240,13 +237,7 @@ def render_weekday_vs_weekend_plot(weekday_weekend_data):
         color_field="is_weekend",
         title="Weekday vs Weekend Energy Consumption by Year",
         orientation="h",
-        extra_options={
-            "barmode": "group", 
-            "yaxis": dict(
-                tickmode="linear",
-                dtick=1
-            )
-        },
+        extra_options={"barmode": "group", "yaxis": dict(tickmode="linear", dtick=1)},
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -315,3 +306,6 @@ def render_eda_tab():
         render_weekday_vs_weekend_plot(weekday_weekend_data)
         with st.expander("View Dataframe", expanded=False):
             st.dataframe(weekday_weekend_data)
+
+    with household_tab:
+        st.subheader("Household Energy Consumption Behavior")
