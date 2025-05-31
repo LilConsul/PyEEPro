@@ -92,21 +92,41 @@ def render_temperature_hourly_plot(hourly_temp_data):
     """
     col1, col2 = st.columns(2)
 
+    # Determine available metrics from the data columns
+    available_metrics = []
+    if "energy" in hourly_temp_data.columns:
+        available_metrics.append("energy")
+    elif "energy_mean" in hourly_temp_data.columns:
+        available_metrics.append("energy_mean")
+
+    if "energy_median" in hourly_temp_data.columns:
+        available_metrics.append("energy_median")
+    if "avg_humidity" in hourly_temp_data.columns:
+        available_metrics.append("avg_humidity")
+
     with col1:
-        vis_type = st.selectbox(
-            "Visualization type:",
-            options=["Heatmap", "Line chart by temperature bin", "3D Surface"],
+        metric = st.selectbox(
+            "Select energy metric:",
+            options=available_metrics,
+            format_func=lambda x: x.replace("energy_", "").replace("avg_", "").capitalize(),
             index=0,
-            key="temp_hourly_vis_type",
+            key="temp_hourly_metric"
         )
 
     with col2:
-        energy_col = "energy" if "energy" in hourly_temp_data.columns else "energy_mean"
+        chart_type = st.radio(
+            "Chart type:",
+            options=["Heatmap", "Line chart", "3D View"],
+            horizontal=True,
+            key="temp_hourly_chart_type",
+        )
 
     # Convert polars dataframe to pandas for plotly compatibility
     pandas_df = hourly_temp_data.to_pandas()
 
-    if vis_type == "Heatmap":
+    energy_col = metric  # Use the selected metric
+
+    if chart_type == "Heatmap":
         # For heatmap we need to pivot the data
         if "temp_bin" in pandas_df.columns:
             # Create a pivot table with hour as rows and temp_bin as columns
@@ -120,11 +140,11 @@ def render_temperature_hourly_plot(hourly_temp_data):
             # Create heatmap using px.imshow
             fig = px.imshow(
                 pivot_df.set_index("hour"),
-                labels=dict(x="Temperature Bin", y="Hour of Day", color="Energy Consumption"),
+                labels=dict(x="Temperature Bin", y="Hour of Day", color=f"{energy_col.replace('energy_', '').capitalize()} Consumption"),
                 x=pivot_df.columns[1:],  # Temperature bins
                 y=pivot_df["hour"],      # Hours
                 color_continuous_scale="Viridis",
-                title="Hourly Energy Consumption by Temperature Bin (Heatmap)"
+                title=f"Hourly {energy_col.replace('energy_', '').replace('avg_', '').capitalize()} by Temperature Bin (Heatmap)"
             )
             fig.update_layout(
                 xaxis_title="Temperature Bin",
@@ -135,7 +155,7 @@ def render_temperature_hourly_plot(hourly_temp_data):
             st.error("Temperature bin data is not available for heatmap visualization")
             return
 
-    elif vis_type == "Line chart by temperature bin":
+    elif chart_type == "Line chart":
         if "temp_bin" in pandas_df.columns:
             fig = px.line(
                 pandas_df,
@@ -143,36 +163,36 @@ def render_temperature_hourly_plot(hourly_temp_data):
                 y=energy_col,
                 color="temp_bin",
                 markers=True,
-                title="Hourly Energy Consumption by Temperature Bin",
+                title=f"Hourly {energy_col.replace('energy_', '').replace('avg_', '').capitalize()} by Temperature Bin",
                 labels={
                     "hour": "Hour of Day",
-                    energy_col: "Energy Consumption (kWh)",
+                    energy_col: f"{energy_col.replace('energy_', '').replace('avg_', '').capitalize()}",
                     "temp_bin": "Temperature Bin"
                 }
             )
             fig.update_layout(
                 xaxis=dict(tickmode="linear", tick0=0, dtick=1, range=[0, 23]),
-                yaxis_title="Energy Consumption (kWh)",
+                yaxis_title=f"{energy_col.replace('energy_', '').replace('avg_', '').capitalize()}",
                 legend_title="Temperature Bin"
             )
         else:
             st.error("Temperature bin data is not available for line chart visualization")
             return
 
-    elif vis_type == "3D Surface":
+    elif chart_type == "3D View":
         if "temp_bin" in pandas_df.columns and "avg_temperature" in pandas_df.columns:
-            # Create a 3D surface plot
+            # Create a 3D scatter plot
             fig = px.scatter_3d(
                 pandas_df,
                 x="hour",
                 y="avg_temperature",
                 z=energy_col,
                 color="temp_bin",
-                title="3D View of Hour, Temperature, and Energy Consumption",
+                title=f"3D View of Hour, Temperature, and {energy_col.replace('energy_', '').replace('avg_', '').capitalize()}",
                 labels={
                     "hour": "Hour of Day",
                     "avg_temperature": "Temperature (°C)",
-                    energy_col: "Energy Consumption (kWh)"
+                    energy_col: f"{energy_col.replace('energy_', '').replace('avg_', '').capitalize()}"
                 }
             )
         else:
@@ -182,15 +202,15 @@ def render_temperature_hourly_plot(hourly_temp_data):
     st.plotly_chart(fig, use_container_width=True)
 
     # Additional information about the datasets
-    with st.expander("Temperature Impact Analysis Details", expanded=False):
+    with st.expander("Hourly Temperature Impact Details", expanded=False):
         st.markdown("""
-        ### Understanding the Temperature Impact Analysis
+        ### Understanding the Hourly Temperature Impact
         
-        This analysis explores how temperature affects energy consumption patterns:
+        This analysis shows how temperature affects energy consumption across different hours of the day:
         
-        - **Temperature Bins**: Data is grouped into temperature ranges for easier pattern identification
-        - **Hourly Analysis**: See how temperature impacts consumption at different times of day
-        - **Seasonal Effects**: Observe how the temperature-consumption relationship varies across seasons
+        - **Temperature Bins**: Data grouped into temperature ranges
+        - **Hourly Patterns**: Reveals how temperature sensitivity varies throughout the day
+        - **Peak Hours**: Identify when temperature has the strongest impact on consumption
         """)
 
 
@@ -205,40 +225,41 @@ def render_weather_tab():
 
     st.subheader("🌡️ Weather Impact Analysis")
 
-    # Temperature vs Energy Consumption Section
-    st.markdown(f"### Temperature vs Energy Consumption | Year {render_years()}")
+    # Create subtabs for daily and hourly analysis
+    daily_tab, hourly_tab = st.tabs(["📆 Daily Temperature Impact", "⏰ Hourly Temperature Impact"])
 
-    with st.spinner("Loading temperature-energy patterns..."):
-        temp_energy_data = storage.get_temperature_energy_patterns(
-            years=selected_years
-        )
+    with daily_tab:
+        st.markdown(f"### Temperature vs Energy Consumption | Year {render_years()}")
 
-        # Apply month filters if selected
-        if selected_months and len(selected_months) > 0 and "month" in temp_energy_data.columns:
-            temp_energy_data = temp_energy_data.filter(pl.col("month").is_in(selected_months))
+        with st.spinner("Loading temperature-energy patterns..."):
+            temp_energy_data = storage.get_temperature_energy_patterns(
+                years=selected_years
+            )
 
-        # Apply temperature bin filters if selected
-        if selected_temp_bins and len(selected_temp_bins) > 0 and "temp_bin" in temp_energy_data.columns:
-            temp_energy_data = temp_energy_data.filter(pl.col("temp_bin").is_in(selected_temp_bins))
+            # Apply month filters if selected
+            if selected_months and len(selected_months) > 0 and "month" in temp_energy_data.columns:
+                temp_energy_data = temp_energy_data.filter(pl.col("month").is_in(selected_months))
 
-    render_temperature_energy_plot(temp_energy_data)
+            # Apply temperature bin filters if selected
+            if selected_temp_bins and len(selected_temp_bins) > 0 and "temp_bin" in temp_energy_data.columns:
+                temp_energy_data = temp_energy_data.filter(pl.col("temp_bin").is_in(selected_temp_bins))
 
-    with st.expander("View Temperature-Energy Data", expanded=False):
-        st.dataframe(temp_energy_data, use_container_width=True)
+        render_temperature_energy_plot(temp_energy_data)
 
-    st.divider()
+        with st.expander("View Temperature-Energy Data", expanded=False):
+            st.dataframe(temp_energy_data, use_container_width=True)
 
-    # Hourly Temperature Impact Section
-    st.markdown("### Hourly Temperature Impact")
+    with hourly_tab:
+        st.markdown("### Hourly Temperature Impact")
 
-    with st.spinner("Loading hourly temperature patterns..."):
-        temp_hourly_data = storage.get_temperature_hourly_patterns()
+        with st.spinner("Loading hourly temperature patterns..."):
+            temp_hourly_data = storage.get_temperature_hourly_patterns()
 
-        # Apply temperature bin filters if selected
-        if selected_temp_bins and len(selected_temp_bins) > 0 and "temp_bin" in temp_hourly_data.columns:
-            temp_hourly_data = temp_hourly_data.filter(pl.col("temp_bin").is_in(selected_temp_bins))
+            # Apply temperature bin filters if selected
+            if selected_temp_bins and len(selected_temp_bins) > 0 and "temp_bin" in temp_hourly_data.columns:
+                temp_hourly_data = temp_hourly_data.filter(pl.col("temp_bin").is_in(selected_temp_bins))
 
-    render_temperature_hourly_plot(temp_hourly_data)
+        render_temperature_hourly_plot(temp_hourly_data)
 
-    with st.expander("View Hourly Temperature Data", expanded=False):
-        st.dataframe(temp_hourly_data, use_container_width=True)
+        with st.expander("View Hourly Temperature Data", expanded=False):
+            st.dataframe(temp_hourly_data, use_container_width=True)
