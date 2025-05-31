@@ -363,7 +363,7 @@ class DataProcessor:
         return weekly_patterns
 
     @staticmethod
-    def _process_seconal_patterns(df: pl.DataFrame) -> pl.DataFrame:
+    def _process_seasonal_patterns(df: pl.DataFrame) -> pl.DataFrame:
         """
         Process energy consumption data to extract patterns by season of year.
 
@@ -468,7 +468,7 @@ class DataProcessor:
 
         return result
 
-    def get_seconal_patterns(self) -> pl.DataFrame:
+    def get_seasonal_patterns(self) -> pl.DataFrame:
         """
         Process energy consumption data to extract patterns by season of year.
 
@@ -495,7 +495,7 @@ class DataProcessor:
             ValueError: If no valid CSV files are found in the configured directory
         """
         data = self._load_data_from_dir(settings.DAILYBLOCKS_DIR)
-        seasonal_patterns = self._process_seconal_patterns(data)
+        seasonal_patterns = self._process_seasonal_patterns(data)
 
         if settings.DEBUG:
             with pl.Config(tbl_rows=-1, tbl_cols=-1):

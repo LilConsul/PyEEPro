@@ -193,19 +193,19 @@ class DataStorage:
             "weekly_patterns", self._processor.get_weekly_patterns, years, cols
         )
 
-    def get_seconal_patterns(
+    def get_seasonal_patterns(
         self, years: List[int] | None = None, cols: List[str] | None = None
     ) -> pl.DataFrame:
         """
-        Retrieve seconal patterns from cache or process if not available.
+        Retrieve seasonal patterns from cache or process if not available.
 
-        This method provides access to seconal energy consumption patterns,
+        This method provides access to seasonal energy consumption patterns,
         with optional filtering by years and columns. The data is cached
         to avoid redundant processing.
 
         Args:
             years: Optional list of years to filter by (e.g., [2013, 2014])
-            cols: Optional list of columns to select (e.g., ["year", "seconal", "energy_mean"])
+            cols: Optional list of columns to select (e.g., ["year", "season", "energy_mean"])
 
         Returns:
             pl.DataFrame: DataFrame with seasonal energy consumption statistics with columns:
@@ -222,7 +222,7 @@ class DataStorage:
             - days_count: Number of days included in each season group (int)
         """
         return self._get_patterns(
-            "seconal_patterns", self._processor.get_seconal_patterns, years, cols
+            "seasonal_patterns", self._processor.get_seasonal_patterns, years, cols
         )
 
     def remove_cache(self, filename: str) -> None:
