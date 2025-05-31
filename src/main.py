@@ -41,7 +41,6 @@ def initialize_session_state():
             "years": True,
         }
 
-
     if "first_run" not in st.session_state:
         st.session_state.first_run = True
 
