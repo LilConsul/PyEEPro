@@ -291,6 +291,67 @@ class DataStorage:
             cols=cols,
         )
 
+    def get_temperature_energy_patterns(
+        self, years: List[int] | None = None, cols: List[str] | None = None
+    ) -> pl.DataFrame:
+        """
+        Retrieve temperature-energy correlation data from cache or process if not available.
+
+        This method provides access to the relationship between temperature and energy consumption,
+        with optional filtering by years and columns. The data is cached to avoid redundant processing.
+
+        Args:
+            years: Optional list of years to filter by (e.g., [2013, 2014])
+            cols: Optional list of columns to select
+
+        Returns:
+            pl.DataFrame: DataFrame with temperature-energy analysis containing columns:
+                - avg_temperature: Average temperature in degrees Celsius (float)
+                - temperature_bin: Categorized temperature range (str)
+                - energy_mean: Mean energy consumption (float)
+                - energy_median: Median energy consumption (float)
+                - energy_std: Standard deviation of energy consumption (float)
+                - energy_min: Minimum energy consumption (float)
+                - energy_max: Maximum energy consumption (float)
+                - count: Number of data points (int)
+        """
+        return self._get_patterns(
+            "temperature_energy_patterns",
+            self._processor.get_temperature_energy_patterns,
+            years,
+            cols,
+        )
+
+    def get_temperature_hourly_patterns(
+        self, years: List[int] | None = None, cols: List[str] | None = None
+    ) -> pl.DataFrame:
+        """
+        Retrieve hourly temperature impact patterns from cache or process if not available.
+
+        This method provides access to how temperature affects energy consumption by hour of day,
+        with optional filtering by years and columns. The data is cached to avoid redundant processing.
+
+        Args:
+            years: Optional list of years to filter by (e.g., [2013, 2014])
+            cols: Optional list of columns to select
+
+        Returns:
+            pl.DataFrame: DataFrame with hourly temperature patterns containing columns:
+                - hour: Hour of day (0-23) (int)
+                - temperature_bin: Categorized temperature range (str)
+                - energy_mean: Mean energy consumption (float)
+                - energy_median: Median energy consumption (float)
+                - energy_count: Number of data points (int)
+                - energy_std: Standard deviation of energy consumption (float)
+                - month: Month number (1-12) (int, optional)
+        """
+        return self._get_patterns(
+            "temperature_hourly_patterns",
+            self._processor.get_temperature_hourly_patterns,
+            years,
+            cols,
+        )
+
     def remove_cache(self, filename: str) -> None:
         """
         Remove a specific cache file and clear its in-memory representation.
