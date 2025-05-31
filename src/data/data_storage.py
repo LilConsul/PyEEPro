@@ -259,6 +259,38 @@ class DataStorage:
             cols,
         )
 
+    def get_household_patterns(self, cols: List[str] | None = None) -> pl.DataFrame:
+        """
+        Retrieve household patterns from cache or process if not available.
+
+        This method provides access to household energy consumption patterns,
+        with optional filtering by columns. The data is cached
+        to avoid redundant processing.
+
+        Args:
+            cols: Optional list of columns to select (e.g., ["year", "household_id", "energy_mean"])
+
+        Returns:
+            Polars DataFrame containing household energy consumption statistics with columns:
+            - stdorToU: Tariff type (Standard or Time of Use) (str)
+            - Acorn_grouped: Simplified socioeconomic group (Affluent, Comfortable, etc.) (str)
+            - Acorn: Detailed socioeconomic category (str)
+            - energy_median: Average of daily median energy values (float)
+            - energy_mean: Average of daily mean energy values (float)
+            - energy_max: Maximum energy consumption (float)
+            - energy_count: Sum of daily count values (int)
+            - energy_std: Average of daily standard deviation values (float)
+            - energy_sum: Total energy consumption (float)
+            - energy_min: Minimum energy consumption (float)
+            - household_count: Number of unique households in each group (int)
+            - days_count: Number of days included in each group (int)
+        """
+        return self._get_patterns(
+            "household_patterns",
+            self._processor.get_household_patterns,
+            cols=cols,
+        )
+
     def remove_cache(self, filename: str) -> None:
         """
         Remove a specific cache file and clear its in-memory representation.
@@ -318,4 +350,4 @@ storage = DataStorage()
 
 if __name__ == "__main__":
     storage = DataStorage()
-    print(storage._processor.get_weekday_vs_weekend_patterns())
+    print(storage.get_household_patterns())

@@ -642,4 +642,127 @@ class DataProcessor:
 
         return weekend_patterns
 
+    @staticmethod
+    def _process_household_patterns(
+        df: pl.DataFrame, household_info: pl.DataFrame
+    ) -> pl.DataFrame:
+        """
+        Process energy consumption data to extract patterns by household type.
+
+        This method joins energy consumption data with household metadata and aggregates
+        it by tariff type (Standard/ToU) and socioeconomic categories (Acorn groups).
+        It calculates various statistical metrics for each household segment.
+
+        Args:
+            df: Polars DataFrame containing energy consumption data with columns:
+                - LCLid: Customer identifier
+                - day: Date string in format YYYY-MM-DD
+                - energy_median: Median energy consumption for each day
+                - energy_mean: Mean energy consumption for each day
+                - energy_max: Maximum energy consumption for each day
+                - energy_count: Number of data points in each day
+                - energy_std: Standard deviation of energy consumption
+                - energy_sum: Total energy consumption for each day
+                - energy_min: Minimum energy consumption for each day
+
+            household_info: Polars DataFrame containing household metadata with columns:
+                - LCLid: Customer identifier
+                - stdorToU: Tariff type (Standard or Time of Use)
+                - Acorn: Detailed socioeconomic category
+                - Acorn_grouped: Simplified socioeconomic group (Affluent, Comfortable, etc.)
+
+        Returns:
+            Polars DataFrame with columns:
+                - stdorToU: Tariff type (Standard or Time of Use) (str)
+                - Acorn_grouped: Simplified socioeconomic group (str)
+                - Acorn: Detailed socioeconomic category (str)
+                - energy_median: Average of daily median energy values (float)
+                - energy_mean: Average of daily mean energy values (float)
+                - energy_max: Maximum energy consumption (float)
+                - energy_count: Sum of daily count values (int)
+                - energy_std: Average of daily standard deviation values (float)
+                - energy_sum: Total energy consumption (float)
+                - energy_min: Minimum energy consumption (float)
+                - household_count: Number of unique households in each group (int)
+                - days_count: Number of days included in each group (int)
+
+        Notes:
+            - Results are sorted by Acorn_grouped, Acorn, and tariff type
+            - Missing values in the join are excluded (inner join)
+        """
+        # Use lazy evaluation for query optimization
+        lazy_df = df.lazy()
+        lazy_household_info = household_info.lazy()
+
+        # Extract year from day column
+        lazy_df = lazy_df.with_columns(
+            pl.col("day").str.to_date().dt.year().alias("year")
+        )
+
+        # Join the energy data with household information
+        joined_df = lazy_df.join(
+            lazy_household_info.select("LCLid", "stdorToU", "Acorn", "Acorn_grouped"),
+            on="LCLid",
+            how="inner",
+        )
+
+        # Group by year, tariff type, and Acorn group
+        result = (
+            joined_df.group_by(["stdorToU", "Acorn_grouped", "Acorn"])
+            .agg(
+                energy_median=pl.col("energy_median").mean(),
+                energy_mean=pl.col("energy_mean").mean(),
+                energy_max=pl.col("energy_max").max(),
+                energy_count=pl.col("energy_count").sum(),
+                energy_std=pl.col("energy_std").mean(),
+                energy_sum=pl.col("energy_sum").sum(),
+                energy_min=pl.col("energy_min").min(),
+                household_count=pl.col("LCLid").n_unique(),
+                days_count=pl.count(),
+            )
+            .sort(["Acorn_grouped", "Acorn", "stdorToU"])
+            .collect()
+        )
+
+        return result
+
+    def get_household_patterns(self) -> pl.DataFrame:
+        """
+        Process energy consumption data to extract patterns by household type.
+
+        This method serves as a pipeline that:
+        1. Loads daily energy data from the configured directory (DAILYBLOCKS_DIR)
+        2. Loads household metadata from the configured file (INFORMATION_HOUSEHOLD_FILE)
+        3. Processes the data to extract consumption patterns by socioeconomic group and tariff type
+        4. Optionally displays debug information if enabled in settings
+
+        Returns:
+            Polars DataFrame containing household energy consumption statistics with columns:
+            - stdorToU: Tariff type (Standard or Time of Use) (str)
+            - Acorn_grouped: Simplified socioeconomic group (Affluent, Comfortable, etc.) (str)
+            - Acorn: Detailed socioeconomic category (str)
+            - energy_median: Average of daily median energy values (float)
+            - energy_mean: Average of daily mean energy values (float)
+            - energy_max: Maximum energy consumption (float)
+            - energy_count: Sum of daily count values (int)
+            - energy_std: Average of daily standard deviation values (float)
+            - energy_sum: Total energy consumption (float)
+            - energy_min: Minimum energy consumption (float)
+            - household_count: Number of unique households in each group (int)
+            - days_count: Number of days included in each group (int)
+
+        Raises:
+            ValueError: If no valid CSV files are found in the configured directories or files
+        """
+        data = self._load_data_from_dir(settings.DAILYBLOCKS_DIR)
+        household_info = self._load_data_from_file(settings.INFORMATION_HOUSEHOLD_FILE)
+        household_patterns = self._process_household_patterns(data, household_info)
+
+        if settings.DEBUG:
+            with pl.Config(tbl_rows=-1, tbl_cols=-1):
+                print(household_patterns)
+                
+        return household_patterns
+
+
 
