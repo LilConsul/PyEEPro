@@ -292,7 +292,7 @@ class DataStorage:
         )
 
     def get_temperature_energy_patterns(
-        self, cols: List[str] | None = None
+        self, years: List[int] | None = None, cols: List[str] | None = None
     ) -> pl.DataFrame:
         """
         Retrieve temperature-energy correlation data from cache or process if not available.
@@ -318,7 +318,8 @@ class DataStorage:
         return self._get_patterns(
             "temperature_energy_patterns",
             self._processor.get_temperature_energy_patterns,
-            cols=cols,
+            years,
+            cols,
         )
 
     def get_temperature_hourly_patterns(
@@ -331,7 +332,6 @@ class DataStorage:
         with optional filtering by years and columns. The data is cached to avoid redundant processing.
 
         Args:
-            years: Optional list of years to filter by (e.g., [2013, 2014])
             cols: Optional list of columns to select
 
         Returns:
@@ -409,5 +409,5 @@ storage = DataStorage()
 
 if __name__ == "__main__":
     storage = DataStorage()
-    print(storage._processor.get_temperature_energy_patterns())
-    print(storage._processor.get_temperature_hourly_patterns())
+    print(storage.get_temperature_energy_patterns().columns)
+    print(storage.get_temperature_hourly_patterns().columns)
