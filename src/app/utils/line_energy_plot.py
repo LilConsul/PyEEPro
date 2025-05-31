@@ -95,7 +95,7 @@ def prepare_by_year_data(data, x_field, metric, group_fields, sort_by, color_fie
 
 
 def create_aggregated_plot(
-    df, x_field, metric, metric_display, time_period, energy_unit, color_field
+    df, x_field, metric, metric_display, time_period, energy_unit, color_field, x_label=None
 ):
     """
     Create a plot for aggregated data.
@@ -108,16 +108,20 @@ def create_aggregated_plot(
         time_period: Time period description
         energy_unit: Unit of energy measurement
         color_field: Field for color differentiation
+        x_label: Custom label for x-axis (overrides default)
 
     Returns:
         Plotly figure
     """
+    # Use custom x_label if provided, otherwise create a default label
+    x_axis_label = x_label if x_label else (x_field.capitalize() if isinstance(x_field, str) else "Value")
+    
     plot_kwargs = {
         "x": x_field,
         "y": metric,
         "markers": True,
         "labels": {
-            x_field: x_field.capitalize() if isinstance(x_field, str) else "Value",
+            x_field: x_axis_label,
             metric: f"{metric_display} Energy Consumption ({energy_unit})",
         },
         "title": f"{time_period} {metric_display} Energy Consumption ({energy_unit})",
@@ -140,6 +144,7 @@ def create_by_year_plot(
     energy_unit,
     color_field,
     separate_years,
+    x_label=None
 ):
     """
     Create a plot for by-year data.
@@ -153,24 +158,39 @@ def create_by_year_plot(
         energy_unit: Unit of energy measurement
         color_field: Field for color differentiation
         separate_years: Whether to create facet plots by year
+        x_label: Custom label for x-axis (overrides default)
 
     Returns:
         Plotly figure
     """
+    years = sorted(df["year"].unique())
+    title = f"{time_period} {metric_display} Energy Consumption by Year ({energy_unit})"
+    
+    # Use custom x_label if provided
+    x_axis_label = x_label if x_label else (x_field.capitalize() if isinstance(x_field, str) else "Value")
+    
     labels = {
-        x_field: x_field.capitalize() if isinstance(x_field, str) else "Value",
+        x_field: x_axis_label,
         metric: f"{metric_display} Energy Consumption ({energy_unit})",
         "year": "Year",
     }
-
     if color_field:
         labels[color_field] = color_field.capitalize()
-
-    if separate_years and time_period == "Seasonal":
-        years = sorted(df["year"].unique())
-        num_years = len(years)
-        num_cols = min(3, num_years)  # Max 3 columns
-
+    
+    # Calculate y-axis range to fit the data
+    y_min = max(0, df[metric].min() * 0.9)
+    y_max = df[metric].max() * 1.1
+    if y_max - y_min < 0.1:
+        y_padding = 0.05
+        y_min = max(0, df[metric].min() - y_padding)
+        y_max = df[metric].max() + y_padding
+    
+    # Create the appropriate plot type
+    if separate_years:
+        num_cols = 2
+        num_rows = (len(years) + num_cols - 1) // num_cols
+        plot_height = max(500, 300 * num_rows)
+        
         fig = px.line(
             df,
             x=x_field,
@@ -178,25 +198,51 @@ def create_by_year_plot(
             color=color_field if color_field else None,
             facet_col="year",
             facet_col_wrap=num_cols,
+            category_orders={"year": years},
             labels=labels,
-            title=f"{time_period} {metric_display} Energy Consumption by Year ({energy_unit})",
+            title=title,
             markers=True,
+            height=plot_height,
         )
-
-        fig.update_yaxes(matches=None)  # Allow different y-axis scales
+        
+        # Enhance facet plot appearance
         fig.for_each_annotation(
-            lambda a: a.update(text=a.text.split("=")[-1])
-        )  # Simplify titles
+            lambda a: a.update(text=f"<b>Year {a.text.split('=')[-1]}</b>")
+        )
+        
+        fig.update_layout(
+            margin=dict(t=80, b=40, l=40, r=20),
+            plot_bgcolor="white",
+            legend_title_text="",
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+        )
+        
+        fig.update_yaxes(
+            showgrid=True,
+            gridwidth=1, 
+            gridcolor="rgba(0,0,0,0.1)",
+            range=[y_min, y_max]
+        )
+        
+        # Adjust x-axis tick angle if needed
+        fig.update_xaxes(
+            tickangle=45 if isinstance(x_field, str) and len(df[x_field].unique()) > 6 else 0
+        )
     else:
+        # Create regular line plot with year as color
         fig = px.line(
             df,
             x=x_field,
             y=metric,
             color="year",
+            category_orders={"year": years},
             labels=labels,
-            title=f"{time_period} {metric_display} Energy Consumption by Year ({energy_unit})",
+            title=title,
             markers=True,
         )
+        
+        # Apply y-axis range
+        fig.update_yaxes(range=[y_min, y_max])
 
     return fig
 
@@ -269,13 +315,14 @@ def create_energy_line_plot(
         if df is None:
             return px.line()  # Return empty plot if data preparation failed
         fig = create_aggregated_plot(
-            df, x_field, metric, metric_display, time_period, energy_unit, color_field
+            df, x_field, metric, metric_display, time_period, energy_unit, color_field, x_label
         )
     else:  # By Year
         df = prepare_by_year_data(
             data, x_field, metric, group_fields, sort_by, color_field
         )
-        fig = create_by_year_plot(df, x_field, metric, metric_display, time_period, energy_unit, color_field, separate_years)
+        fig = create_by_year_plot(
+            df, x_field, metric, metric_display, time_period, energy_unit, color_field, separate_years, x_label
+        )
     
-    # Apply layout options
     return apply_layout_options(fig, extra_layout_options)
