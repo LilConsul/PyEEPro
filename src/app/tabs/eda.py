@@ -2,6 +2,7 @@ import streamlit as st
 from data import storage
 from app.utils import create_line_plot, render_years, create_bar_chart
 from app.tabs.household import render_household_tab
+from app.tabs.weather import render_weather_tab
 
 
 def render_hourly_plot(hourly_data):
@@ -312,5 +313,4 @@ def render_eda_tab():
         render_household_tab()
 
     with weather_tab:
-        st.subheader("Weather Impact Analysis")
-        st.info("Weather impact analysis is coming soon...")
+        render_weather_tab()
