@@ -1,8 +1,6 @@
 import streamlit as st
-import polars as pl
 from data import storage
-
-import plotly.express as px
+from app.utils import create_energy_plot, render_years
 
 
 def render_hourly_plot(hourly_data):
@@ -25,54 +23,17 @@ def render_hourly_plot(hourly_data):
             "Display view:", options=["Aggregated", "By Year"], horizontal=True
         )
 
-    # Define the unit for energy measurements
-    energy_unit = "kWh"
-
-    if display_type == "Aggregated":
-        hourly_agg = (
-            hourly_data.group_by("hour")
-            .agg(**{f"{metric}": pl.col(metric).mean()})
-            .sort("hour")
-        )
-
-        df = hourly_agg.to_pandas()
-
-        fig = px.line(
-            df,
-            x="hour",
-            y=metric,
-            labels={
-                "hour": "Hour of Day",
-                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
-            },
-            title=f"Hourly {metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
-            markers=True,
-        )
-
-    else:  # By Year
-        df = (
-            hourly_data.select(["year", "hour", metric])
-            .sort(["year", "hour"])
-            .to_pandas()
-        )
-
-        fig = px.line(
-            df,
-            x="hour",
-            y=metric,
-            color="year",
-            labels={
-                "hour": "Hour of Day",
-                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
-                "year": "Year",
-            },
-            title=f"Hourly {metric.replace('energy_', '').capitalize()} Energy Consumption by Year ({energy_unit})",
-            markers=True,
-        )
-
-    fig.update_layout(
-        xaxis=dict(tickmode="linear", tick0=0, dtick=1, range=[0, 23]),
-        hovermode="x unified",
+    fig = create_energy_plot(
+        data=hourly_data,
+        metric=metric,
+        display_type=display_type,
+        x_field="hour",
+        x_label="Hour of Day",
+        time_period="Hourly",
+        sort_by="hour",
+        extra_layout_options={
+            "xaxis": dict(tickmode="linear", tick0=0, dtick=1, range=[0, 23])
+        },
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -102,53 +63,40 @@ def render_daily_plot(daily_data):
             key="daily_display_type",
         )
 
-    # Define the unit for energy measurements
-    energy_unit = "kWh"
+    # Print available columns to help debug
+    available_cols = daily_data.columns
 
-    if display_type == "Aggregated":
-        daily_agg = (
-            daily_data.group_by("weekday", "weekday_name")
-            .agg(**{f"{metric}": pl.col(metric).mean()})
-            .sort("weekday")
-        )
+    x_field = None
+    sort_field = None
+    group_fields = None
 
-        df = daily_agg.to_pandas()
+    # Choose appropriate x field based on what's available
+    if "weekday_name" in available_cols:
+        x_field = "weekday_name"
+    elif "day_of_week" in available_cols:
+        x_field = "day_of_week"
+    else:
+        # Fallback to integer weekday if no name column exists
+        for col in ["weekday", "day"]:
+            if col in available_cols:
+                x_field = col
+                break
 
-        fig = px.line(
-            df,
-            x="weekday_name",
-            y=metric,
-            labels={
-                "weekday_name": "Day of Week",
-                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
-            },
-            title=f"Daily {metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
-            markers=True,
-        )
+    if not x_field:
+        st.error("No valid day of week column found in the data")
+        return
 
-    else:  # By Year
-        df = (
-            daily_data.select(["year", "weekday", "weekday_name", metric])
-            .sort(["year", "weekday"])
-            .to_pandas()
-        )
-
-        fig = px.line(
-            df,
-            x="weekday_name",
-            y=metric,
-            color="year",
-            labels={
-                "weekday_name": "Day of Week",
-                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
-                "year": "Year",
-            },
-            title=f"Daily {metric.replace('energy_', '').capitalize()} Energy Consumption by Year ({energy_unit})",
-            markers=True,
-        )
-
-    fig.update_layout(
-        hovermode="x unified",
+    fig = create_energy_plot(
+        data=daily_data,
+        metric=metric,
+        display_type=display_type,
+        x_field=x_field,
+        x_label="Day of Week",
+        time_period="Daily",
+        sort_by="weekday",
+        group_fields=["weekday", "weekday_name"]
+        if display_type == "Aggregated"
+        else None,
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -178,69 +126,20 @@ def render_weekly_plot(weekly_data):
             key="weekly_display_type",
         )
 
-    # Define the unit for energy measurements
-    energy_unit = "kWh"
-
-    if display_type == "Aggregated":
-        weekly_agg = (
-            weekly_data.group_by("week")
-            .agg(**{f"{metric}": pl.col(metric).mean()})
-            .sort("week")
-        )
-
-        df = weekly_agg.to_pandas()
-
-        fig = px.line(
-            df,
-            x="week",
-            y=metric,
-            labels={
-                "week": "Week of Year",
-                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
-            },
-            title=f"Weekly {metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
-            markers=True,
-        )
-
-    else:  # By Year
-        df = (
-            weekly_data.select(["year", "week", metric])
-            .sort(["year", "week"])
-            .to_pandas()
-        )
-
-        fig = px.line(
-            df,
-            x="week",
-            y=metric,
-            color="year",
-            labels={
-                "week": "Week of Year",
-                metric: f"{metric.replace('energy_', '').capitalize()} Energy Consumption ({energy_unit})",
-                "year": "Year",
-            },
-            title=f"Weekly {metric.replace('energy_', '').capitalize()} Energy Consumption by Year ({energy_unit})",
-            markers=True,
-        )
-
-    fig.update_layout(
-        xaxis=dict(tickmode="linear", tick0=1, dtick=4, range=[1, 53]),
-        hovermode="x unified",
+    fig = create_energy_plot(
+        data=weekly_data,
+        metric=metric,
+        display_type=display_type,
+        x_field="week",
+        x_label="Week of Year",
+        time_period="Weekly",
+        sort_by=["year", "week"] if display_type == "By Year" else "week",
+        extra_layout_options={
+            "xaxis": dict(tickmode="linear", tick0=1, dtick=4, range=[1, 53])
+        },
     )
 
     st.plotly_chart(fig, use_container_width=True)
-
-
-def render_years() -> str:
-    """
-    Render the selected years from the session state.
-
-    Returns:
-        A string representation of selected years or "All" if none are selected.
-    """
-    return (
-        str(st.session_state.get("filters", {}).get("years", "")).strip("[]") or "All"
-    )
 
 
 def render_eda_tab():
