@@ -258,9 +258,4 @@ storage = DataStorage()
 
 if __name__ == "__main__":
     storage = DataStorage()
-    print(storage.get_weekly_patterns())
-    print(storage.get_weekly_patterns())
-    print(storage.get_daily_patterns())
-    print(storage.get_daily_patterns())
-    print(storage.get_hourly_patterns())
-    print(storage.get_hourly_patterns())
+    storage._processor.get_seconal_patterns()
