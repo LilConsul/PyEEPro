@@ -352,7 +352,8 @@ def render_temperature_hourly_plot(hourly_temp_data):
         with col1:
             # Calculate peak hours
             if "hour" in pandas_df.columns and energy_col in pandas_df.columns:
-                peak_hours = pandas_df.groupby("hour")[energy_col].mean().reset_index()
+                # Fix FutureWarning by explicitly setting observed=False
+                peak_hours = pandas_df.groupby("hour", observed=False)[energy_col].mean().reset_index()
                 peak_hour = peak_hours.loc[peak_hours[energy_col].idxmax()]["hour"]
 
                 st.metric(
