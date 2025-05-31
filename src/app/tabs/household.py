@@ -2,15 +2,12 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+import polars as pl
 from data import storage
 
 
 def render_tariff_comparison(household_data):
-    """Create visualizations comparing Standard vs. Economy-7 tariffs."""
     st.subheader("Tariff Type Comparison")
-    
-    # Convert to pandas for easier plotting with Plotly
-    df = household_data.to_pandas()
     
     col1, col2 = st.columns(2)
     
@@ -18,7 +15,7 @@ def render_tariff_comparison(household_data):
         metric = st.selectbox(
             "Select energy metric:",
             options=["energy_mean", "energy_median", "energy_sum", "energy_max"],
-            format_func=lambda x: x.replace("energy_", "").capitalize(),
+            format_func=lambda x: x.replace("energy_", "").capitalize() + " (kWh)",
             index=0,
             key="tariff_metric"
         )
@@ -32,9 +29,9 @@ def render_tariff_comparison(household_data):
         )
     
     if view_type == "ACORN Group":
-        # Group by ACORN and tariff type
+        df_pd = household_data.to_pandas()
         fig = px.bar(
-            df,
+            df_pd,
             x="Acorn_grouped",
             y=metric,
             color="stdorToU",
@@ -43,47 +40,45 @@ def render_tariff_comparison(household_data):
             labels={
                 "stdorToU": "Tariff Type",
                 "Acorn_grouped": "ACORN Group",
-                metric: metric.replace("energy_", "").capitalize()
+                metric: metric.replace("energy_", "").capitalize() + " (kWh)"
             },
-            title=f"Energy Consumption by ACORN Group and Tariff Type"
+            title=f"Energy Consumption by ACORN Group and Tariff Type (kWh)"
         )
     else:
-        # Create summary dataframe grouped by tariff type
-        summary_df = df.groupby("stdorToU").agg({
-            metric: "mean",
-            "household_count": "sum",
-            "days_count": "sum"
-        }).reset_index()
+        summary_df = household_data.group_by("stdorToU").agg([
+            pl.mean(metric).alias(metric),
+            pl.sum("household_count").alias("household_count"),
+            pl.sum("days_count").alias("days_count")
+        ])
         
-        # Create bar chart for overall comparison
+        df_pd = summary_df.to_pandas()
         fig = px.bar(
-            summary_df,
+            df_pd,
             x="stdorToU",
             y=metric,
             color="stdorToU",
             color_discrete_map={"Std": "#1f77b4", "ToU": "#ff7f0e"},
             labels={
                 "stdorToU": "Tariff Type",
-                metric: metric.replace("energy_", "").capitalize()
+                metric: metric.replace("energy_", "").capitalize() + " (kWh)"
             },
-            title=f"Overall Energy Consumption by Tariff Type",
+            title=f"Overall Energy Consumption by Tariff Type (kWh)",
             text_auto='.2f'
         )
         
-        # Add household count as annotations
         fig.update_traces(
             hovertemplate="<b>%{x}</b><br>" +
-                        f"{metric.replace('energy_', '').capitalize()}: %{{y:.3f}}<br>" +
+                        f"{metric.replace('energy_', '').capitalize()} (kWh): %{{y:.3f}}<br>" +
                         "Households: %{customdata[0]}<br>" +
                         "Days measured: %{customdata[1]}",
-            customdata=summary_df[["household_count", "days_count"]]
+            customdata=df_pd[["household_count", "days_count"]]
         )
     
     fig.update_layout(
         height=500,
         legend_title_text="Tariff Type",
         xaxis_title="ACORN Group" if view_type == "ACORN Group" else "Tariff Type",
-        yaxis_title=metric.replace("energy_", "").capitalize(),
+        yaxis_title=metric.replace("energy_", "").capitalize() + " (kWh)",
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -97,11 +92,7 @@ def render_tariff_comparison(household_data):
 
 
 def render_acorn_analysis(household_data):
-    """Create visualizations for ACORN group analysis."""
     st.subheader("ACORN Group Analysis")
-    
-    # Convert to pandas for easier plotting with Plotly
-    df = household_data.to_pandas()
     
     col1, col2 = st.columns(2)
     
@@ -109,7 +100,7 @@ def render_acorn_analysis(household_data):
         metric = st.selectbox(
             "Select energy metric:",
             options=["energy_mean", "energy_median", "energy_sum", "energy_max"],
-            format_func=lambda x: x.replace("energy_", "").capitalize(),
+            format_func=lambda x: x.replace("energy_", "").capitalize() + " (kWh)",
             index=0,
             key="acorn_metric"
         )
@@ -123,22 +114,22 @@ def render_acorn_analysis(household_data):
         )
     
     if chart_type == "Bar Chart":
-        # Group by ACORN groups
-        acorn_summary = df.groupby("Acorn_grouped").agg({
-            metric: "mean",
-            "household_count": "sum"
-        }).reset_index().sort_values(by=metric, ascending=False)
+        acorn_summary = household_data.group_by("Acorn_grouped").agg([
+            pl.mean(metric).alias(metric),
+            pl.sum("household_count").alias("household_count")
+        ]).sort(metric, descending=True)
         
+        df_pd = acorn_summary.to_pandas()
         fig = px.bar(
-            acorn_summary,
+            df_pd,
             x="Acorn_grouped",
             y=metric,
             color="Acorn_grouped",
             labels={
                 "Acorn_grouped": "ACORN Group",
-                metric: metric.replace("energy_", "").capitalize()
+                metric: metric.replace("energy_", "").capitalize() + " (kWh)"
             },
-            title=f"Energy Consumption by ACORN Group",
+            title=f"Energy Consumption by ACORN Group (kWh)",
             text="household_count"
         )
         
@@ -148,8 +139,9 @@ def render_acorn_analysis(household_data):
         )
         
     else:  # Sunburst
+        df_pd = household_data.to_pandas()
         fig = px.sunburst(
-            df,
+            df_pd,
             path=["Acorn_grouped", "stdorToU"],
             values="household_count",
             color=metric,
@@ -158,26 +150,22 @@ def render_acorn_analysis(household_data):
                 "Acorn_grouped": "ACORN Group",
                 "stdorToU": "Tariff Type",
                 "household_count": "Number of Households",
-                metric: metric.replace("energy_", "").capitalize()
+                metric: metric.replace("energy_", "").capitalize() + " (kWh)"
             },
-            title=f"Energy Consumption Distribution across ACORN Groups and Tariff Types"
+            title=f"Energy Consumption Distribution across ACORN Groups and Tariff Types (kWh)"
         )
     
     fig.update_layout(
         height=600,
         xaxis_title="ACORN Group" if chart_type == "Bar Chart" else None,
-        yaxis_title=metric.replace("energy_", "").capitalize() if chart_type == "Bar Chart" else None
+        yaxis_title=metric.replace("energy_", "").capitalize() + " (kWh)" if chart_type == "Bar Chart" else None
     )
     
     st.plotly_chart(fig, use_container_width=True)
 
 
 def render_consumption_comparison(household_data):
-    """Compare high vs. low energy consumers."""
     st.subheader("High vs. Low Consumers")
-    
-    # Convert to pandas for easier plotting with Plotly
-    df = household_data.to_pandas()
     
     col1, col2 = st.columns(2)
     
@@ -185,7 +173,7 @@ def render_consumption_comparison(household_data):
         metric = st.selectbox(
             "Select energy metric:",
             options=["energy_mean", "energy_median", "energy_max"],
-            format_func=lambda x: x.replace("energy_", "").capitalize(),
+            format_func=lambda x: x.replace("energy_", "").capitalize() + " (kWh)",
             index=0,
             key="consumption_metric"
         )
@@ -193,8 +181,8 @@ def render_consumption_comparison(household_data):
     with col2:
         n_groups = st.slider("Number of quantile groups:", min_value=2, max_value=5, value=3, key="consumption_groups")
     
-    # Create quantile groups
-    df = df.sort_values(by=metric)
+    # Using pandas for this section as quantile grouping is more straightforward
+    df = household_data.sort(metric).to_pandas()
     group_size = len(df) // n_groups
     remainder = len(df) % n_groups
     
@@ -243,16 +231,16 @@ def render_consumption_comparison(household_data):
         fig1.add_trace(go.Bar(
             x=summary_stats["consumption_group"],
             y=summary_stats[met],
-            name=met.replace("energy_", "").capitalize(),
+            name=met.replace("energy_", "").capitalize() + " (kWh)",
             marker_color=colors[i],
             text=summary_stats["household_count"].astype(str) + " households<br>" + summary_stats["stdorToU"],
             textposition="auto"
         ))
     
     fig1.update_layout(
-        title="Energy Consumption Metrics by Consumer Group",
+        title="Energy Consumption Metrics by Consumer Group (kWh)",
         xaxis_title="Consumer Group",
-        yaxis_title="Energy Value",
+        yaxis_title="Energy Value (kWh)",
         legend_title="Metric",
         barmode="group",
         height=500
@@ -302,11 +290,7 @@ def render_consumption_comparison(household_data):
 
 
 def render_household_distribution(household_data):
-    """Visualize the distribution of households."""
     st.subheader("Household Distribution")
-    
-    # Convert to pandas for easier plotting with Plotly
-    df = household_data.to_pandas()
     
     col1, col2 = st.columns(2)
     
@@ -318,10 +302,13 @@ def render_household_distribution(household_data):
             key="household_viz_type"
         )
     
+    # Convert to pandas for plotting with Plotly
+    df_pd = household_data.to_pandas()
+    
     # Create figure based on selected visualization type
     if viz_type == "Bubble Chart":
         fig = px.scatter(
-            df,
+            df_pd,
             x="energy_mean",
             y="energy_max",
             size="household_count",
@@ -329,16 +316,16 @@ def render_household_distribution(household_data):
             hover_name="Acorn_grouped",
             color_discrete_map={"Std": "#1f77b4", "ToU": "#ff7f0e"},
             labels={
-                "energy_mean": "Mean Energy Consumption",
-                "energy_max": "Maximum Energy Consumption",
+                "energy_mean": "Mean Energy Consumption (kWh)",
+                "energy_max": "Maximum Energy Consumption (kWh)",
                 "household_count": "Number of Households",
                 "stdorToU": "Tariff Type"
             },
-            title="Household Distribution by Energy Consumption"
+            title="Household Distribution by Energy Consumption (kWh)"
         )
     else:
         fig = px.scatter(
-            df,
+            df_pd,
             x="energy_median",
             y="energy_mean",
             color="Acorn_grouped",
@@ -346,14 +333,14 @@ def render_household_distribution(household_data):
             size="household_count",
             hover_data=["days_count"],
             labels={
-                "energy_median": "Median Energy Consumption",
-                "energy_mean": "Mean Energy Consumption",
+                "energy_median": "Median Energy Consumption (kWh)",
+                "energy_mean": "Mean Energy Consumption (kWh)",
                 "Acorn_grouped": "ACORN Group",
                 "stdorToU": "Tariff Type",
                 "household_count": "Number of Households",
                 "days_count": "Days Measured"
             },
-            title="Energy Consumption Patterns across Household Groups"
+            title="Energy Consumption Patterns across Household Groups (kWh)"
         )
     
     fig.update_layout(
@@ -371,44 +358,39 @@ def render_household_distribution(household_data):
 
 
 def render_household_tab():
-    """Render the household tab with all visualizations."""
     st.header("📊 Household Energy Consumption Analysis")
     
-    # Load household data
     with st.spinner("Loading household data..."):
         household_data = storage.get_household_patterns()
     
     # Apply filters
     filters = st.session_state.get("filters", {})
     
-    # Filter by tariff type if specified
     if filters.get("tariff_type"):
         household_data = household_data.filter(
-            household_data["stdorToU"].is_in(filters["tariff_type"])
+            pl.col("stdorToU").is_in(filters["tariff_type"])
         )
     
-    # Filter by ACORN categories if specified
     if filters.get("acorn"):
         household_data = household_data.filter(
-            household_data["Acorn"].is_in(filters["acorn"])
+            pl.col("Acorn").is_in(filters["acorn"])
         )
     
-    # Check if data is empty after filtering
-    if household_data.shape[0] == 0:
+    if household_data.height == 0:
         st.warning("No data available with the current filters. Please adjust your filters.")
         return
     
     # Display key metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Households", household_data["household_count"].sum())
+        st.metric("Total Households", household_data.select(pl.sum("household_count")).item())
     with col2:
-        st.metric("Tariff Types", household_data["stdorToU"].n_unique())
+        st.metric("Tariff Types", household_data.select(pl.col("stdorToU").n_unique()).item())
     with col3:
-        st.metric("ACORN Groups", household_data["Acorn_grouped"].n_unique())
+        st.metric("ACORN Groups", household_data.select(pl.col("Acorn_grouped").n_unique()).item())
     with col4:
-        avg_energy = household_data["energy_mean"].mean()
-        st.metric("Avg. Energy Consumption", f"{avg_energy:.3f}")
+        avg_energy = household_data.select(pl.mean("energy_mean")).item()
+        st.metric("Avg. Energy Consumption", f"{avg_energy:.3f} kWh")
     
     # Create tabs for different analyses
     tab1, tab2, tab3, tab4 = st.tabs([
@@ -432,4 +414,4 @@ def render_household_tab():
     
     # Show raw data in an expander
     with st.expander("View Raw Data", expanded=False):
-        st.dataframe(household_data.to_pandas())
+        st.dataframe(household_data)
