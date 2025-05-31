@@ -284,5 +284,4 @@ storage = DataStorage()
 
 if __name__ == "__main__":
     storage = DataStorage()
-    storage.get_seconal_patterns()
-    storage.get_weekly_patterns()
+    print(storage._processor.get_seasonal_patterns())

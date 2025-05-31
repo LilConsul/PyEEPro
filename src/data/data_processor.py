@@ -390,6 +390,7 @@ class DataProcessor:
             ValueError: If no valid CSV files are found in the configured directory
         """
         # Use lazy evaluation for query optimization
+        # Use lazy evaluation for query optimization
         lazy_df = df.lazy()
 
         result = (
@@ -404,9 +405,8 @@ class DataProcessor:
             # Add season column based on week number
             .with_columns(
                 [
+                    # Define seasons based on week numbers
                     pl.when((pl.col("week_num") >= 1) & (pl.col("week_num") <= 9))
-                    .then(pl.lit("Winter"))
-                    .when((pl.col("week_num") >= 49) & (pl.col("week_num") <= 53))
                     .then(pl.lit("Winter"))
                     .when((pl.col("week_num") >= 10) & (pl.col("week_num") <= 22))
                     .then(pl.lit("Spring"))
@@ -414,29 +414,44 @@ class DataProcessor:
                     .then(pl.lit("Summer"))
                     .when((pl.col("week_num") >= 36) & (pl.col("week_num") <= 48))
                     .then(pl.lit("Fall"))
-                    .alias("season")
+                    .when((pl.col("week_num") >= 49) & (pl.col("week_num") <= 53))
+                    .then(pl.lit("Winter"))
+                    .otherwise(pl.lit("Unknown"))
+                    .alias("season"),
+                    # Create a season_sequence field to order seasons chronologically within a year
+                    pl.when((pl.col("week_num") >= 1) & (pl.col("week_num") <= 9))
+                    .then(1)  # Early year winter comes first
+                    .when((pl.col("week_num") >= 10) & (pl.col("week_num") <= 22))
+                    .then(2)  # Spring comes second
+                    .when((pl.col("week_num") >= 23) & (pl.col("week_num") <= 35))
+                    .then(3)  # Summer comes third
+                    .when((pl.col("week_num") >= 36) & (pl.col("week_num") <= 48))
+                    .then(4)  # Fall comes fourth
+                    .when((pl.col("week_num") >= 49) & (pl.col("week_num") <= 53))
+                    .then(5)  # Late year winter comes last
+                    .alias("season_sequence"),
                 ]
             )
-            # Add week column (1-12 within each season)
+            # Add simplified week column within each season - fix the winter week numbering
             .with_columns(
                 [
                     pl.when(pl.col("season") == "Winter")
                     .then(
-                        pl.when(pl.col("week_num") <= 9)
-                        .then(pl.col("week_num"))
-                        .otherwise((pl.col("week_num") - 48 + 9) % 12 + 1)
+                        pl.when(pl.col("week_num") >= 49)
+                        .then(pl.col("week_num") - 48)  # Weeks 49-53 become 1-5
+                        .otherwise(pl.col("week_num") + 4)  # Weeks 1-9 become 5-13
                     )
                     .when(pl.col("season") == "Spring")
-                    .then(((pl.col("week_num") - 10) % 12) + 1)
+                    .then(pl.col("week_num") - 9)  # Weeks 10-22 become 1-13
                     .when(pl.col("season") == "Summer")
-                    .then(((pl.col("week_num") - 23) % 12) + 1)
+                    .then(pl.col("week_num") - 22)  # Weeks 23-35 become 1-13
                     .when(pl.col("season") == "Fall")
-                    .then(((pl.col("week_num") - 36) % 12) + 1)
+                    .then(pl.col("week_num") - 35)  # Weeks 36-48 become 1-13
                     .alias("week")
                 ]
             )
             # Group by and aggregate
-            .group_by(["year", "season", "week"])
+            .group_by(["year", "season", "season_sequence", "week"])
             .agg(
                 energy_median=pl.col("energy_median").mean(),
                 energy_mean=pl.col("energy_mean").mean(),
@@ -447,22 +462,9 @@ class DataProcessor:
                 energy_min=pl.col("energy_min").min(),
                 days_count=pl.count(),
             )
-            # Add season order for sorting
-            .with_columns(
-                [
-                    pl.when(pl.col("season") == "Winter")
-                    .then(1)
-                    .when(pl.col("season") == "Spring")
-                    .then(2)
-                    .when(pl.col("season") == "Summer")
-                    .then(3)
-                    .when(pl.col("season") == "Fall")
-                    .then(4)
-                    .alias("season_order")
-                ]
-            )
-            .sort(["year", "season_order", "week"])
-            .drop("season_order")
+            # Sort by year and season_sequence to get the natural flow of seasons
+            .sort(["year", "season_sequence", "week"])
+            .drop("season_sequence")  # Remove helper column
             .collect()
         )
 
@@ -502,5 +504,101 @@ class DataProcessor:
                 print(seasonal_patterns)
 
         return seasonal_patterns
+
+    @staticmethod
+    def _process_weekend_patterns(df: pl.DataFrame) -> pl.DataFrame:
+        """
+        Process daily energy consumption data to extract patterns by weekday vs weekend.
+
+        This method analyzes daily energy consumption data and aggregates it by weekday/weekend status,
+        allowing for identification of consumption patterns specific to weekdays versus weekends.
+
+        Args:
+            df: Polars DataFrame containing at least:
+               - day: Date string in format YYYY-MM-DD
+               - energy_median: Median energy consumption for each day
+               - energy_mean: Mean energy consumption for each day
+               - energy_max: Maximum energy consumption for each day
+               - energy_count: Number of data points in each day
+               - energy_std: Standard deviation of energy consumption
+               - energy_sum: Total energy consumption for each day
+               - energy_min: Minimum energy consumption for each day
+
+        Returns:
+            Polars DataFrame with columns:
+               - year: Calendar year of the data
+               - is_weekend: Boolean flag (True for weekend days, False for weekdays)
+               - energy_median: Average of daily median energy values
+               - energy_mean: Average of daily mean energy values
+               - energy_max: Maximum energy consumption
+               - energy_count: Sum of daily count values
+               - energy_std: Average of daily standard deviation values
+               - energy_sum: Total energy consumption
+               - energy_min: Minimum energy consumption
+               - days_count: Number of days included in each group
+        """
+        # Use lazy evaluation for query optimization
+        lazy_df = df.lazy()
+
+        # Extract year and determine if day is weekend
+        result = (
+            lazy_df.with_columns(
+                [
+                    pl.col("day").str.to_date().dt.year().alias("year"),
+                    pl.col("day").str.to_date().dt.weekday().alias("weekday"),
+                ]
+            )
+            # Add is_weekend flag (weekday in Polars: 1=Monday, ..., 7=Sunday)
+            .with_columns((pl.col("weekday") >= 6).alias("is_weekend"))
+            .group_by(["year", "is_weekend"])
+            .agg(
+                energy_median=pl.col("energy_median").mean(),
+                energy_mean=pl.col("energy_mean").mean(),
+                energy_max=pl.col("energy_max").max(),
+                energy_count=pl.col("energy_count").sum(),
+                energy_std=pl.col("energy_std").mean(),
+                energy_sum=pl.col("energy_sum").sum(),
+                energy_min=pl.col("energy_min").min(),
+                days_count=pl.count(),
+            )
+            .sort(["year", "is_weekend"])
+            .collect()
+        )
+
+        return result
+
+    def get_weekend_patterns(self) -> pl.DataFrame:
+        """
+        Process energy consumption data to extract patterns by weekday vs weekend.
+
+        This method serves as a pipeline that:
+        1. Loads daily energy data from the configured directory (DAILYBLOCKS_DIR)
+        2. Processes the data to differentiate between weekday and weekend consumption patterns
+        3. Optionally displays debug information if enabled in settings
+
+        Returns:
+            Polars DataFrame containing weekday/weekend energy consumption statistics with columns:
+            - year: Calendar year of the data (int)
+            - is_weekend: Boolean flag (True for weekend days, False for weekdays) (bool)
+            - energy_median: Average of daily median energy values (float)
+            - energy_mean: Average of daily mean energy values (float)
+            - energy_max: Maximum energy consumption (float)
+            - energy_count: Sum of daily count values (int)
+            - energy_std: Average of daily standard deviation values (float)
+            - energy_sum: Total energy consumption (float)
+            - energy_min: Minimum energy consumption (float)
+            - days_count: Number of days included in each group (int)
+
+        Raises:
+            ValueError: If no valid CSV files are found in the configured directory
+        """
+        data = self._load_data_from_dir(settings.DAILYBLOCKS_DIR)
+        weekend_patterns = self._process_weekend_patterns(data)
+
+        if settings.DEBUG:
+            with pl.Config(tbl_rows=-1, tbl_cols=-1):
+                print(weekend_patterns)
+
+        return weekend_patterns
 
 
