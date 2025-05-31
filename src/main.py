@@ -46,23 +46,23 @@ def render_app_content():
     render_sidebar()
 
     # Create tabs for different analyses
-    tab1, tab2, tab3, tab4 = st.tabs(
-        [
-            "📊 Exploratory Data Analysis",
-            "🧹 Data Cleaning & Feature Engineering",
-            "💡 Interesting Findings",
-            "📈 Visualizations",
-        ]
-    )
+    # tab1, tab2, tab3, tab4 = st.tabs(
+    #     [
+    #         "📊 Exploratory Data Analysis",
+    #         "🧹 Data Cleaning & Feature Engineering",
+    #         "💡 Interesting Findings",
+    #         "📈 Visualizations",
+    #     ]
+    # )
 
-    with tab1:
-        render_eda_tab()
-    with tab2:
-        render_not_found_tab()
-    with tab3:
-        render_not_found_tab()
-    with tab4:
-        render_not_found_tab()
+    # with tab1:
+    render_eda_tab()
+    # with tab2:
+    #     render_not_found_tab()
+    # with tab3:
+    #     render_not_found_tab()
+    # with tab4:
+    #     render_not_found_tab()
 
 
 def main():

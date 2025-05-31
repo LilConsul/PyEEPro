@@ -1,6 +1,7 @@
 import streamlit as st
 from data import storage
 from app.utils import create_line_plot, render_years, create_bar_chart
+from app.tabs.household import render_household_tab
 
 
 def render_hourly_plot(hourly_data):
@@ -227,7 +228,7 @@ def render_weekday_vs_weekend_plot(weekday_weekend_data):
         key="weekday_weekend_metric",
     )
 
-    # Since this is a horizontal bar chart (orientation="h"), 
+    # Since this is a horizontal bar chart (orientation="h"),
     # we need to ensure x-axis ticks (which display the values) are visible
     fig = create_bar_chart(
         data=weekday_weekend_data,
@@ -308,4 +309,8 @@ def render_eda_tab():
             st.dataframe(weekday_weekend_data)
 
     with household_tab:
-        st.subheader("Household Energy Consumption Behavior")
+        render_household_tab()
+
+    with weather_tab:
+        st.subheader("Weather Impact Analysis")
+        st.info("Weather impact analysis is coming soon...")

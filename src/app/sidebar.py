@@ -2,6 +2,12 @@ import streamlit as st
 from data import storage
 
 
+def get_acorn_categories():
+    with st.spinner("Loading ACORN categories..."):
+        acorn = sorted(storage.get_household_patterns().get_column("Acorn").unique())
+        return acorn
+
+
 def render_sidebar():
     with st.sidebar:
         tab1, tab2 = st.tabs(["Filters", "Cache Management"])
@@ -17,21 +23,29 @@ def render_sidebar():
                     "Select Years", available_years, default=available_years
                 )
             with subtab2:
-
-
-
-                available_consumers = ["High", "Medium", "Low"]
-                selected_consumers = st.multiselect(
-                    "Select Consumer Types",
-                    available_consumers,
-                    default=available_consumers,
+                tariff_types = {
+                    "Std": "Standard",
+                    "ToU": "Economy-7",
+                }
+                selected_tariff = st.multiselect(
+                    "Select Tariff Type",
+                    options=list(tariff_types.keys()),
+                    default=list(tariff_types.keys()),
+                    format_func=lambda x: tariff_types[x],
+                )
+                acorn_categories = get_acorn_categories()
+                selected_acorn = st.multiselect(
+                    "Select ACORN Categories",
+                    options=acorn_categories,
+                    default=acorn_categories,
                 )
 
             if st.session_state.get("filters") is None:
                 st.session_state["filters"] = {}
             st.session_state.filters = {
                 "years": selected_years,
-                "consumer_type": selected_consumers,
+                "tariff_type": selected_tariff,
+                "acorn": selected_acorn,
             }
 
         with tab2:
