@@ -6,10 +6,10 @@ from .dataset_extract import extract_dataset
 
 def check_dataset_exists(progress_callback=None) -> tuple[bool, str]:
     """Check if dataset exists in the expected location
-    
+
     Args:
         progress_callback: Optional callback function to report extraction progress
-    
+
     Returns:
         Tuple of (success, message)
     """
@@ -38,15 +38,23 @@ def check_dataset_exists(progress_callback=None) -> tuple[bool, str]:
             if os.access(zip_path, os.R_OK):
                 if progress_callback:
                     size_mb = zip_path.stat().st_size / (1024 * 1024)
-                    progress_callback(0.2, f"Found ZIP file: {zip_path.name} ({size_mb:.1f} MB)")
+                    progress_callback(
+                        0.2, f"Found ZIP file: {zip_path.name} ({size_mb:.1f} MB)"
+                    )
             else:
                 if progress_callback:
-                    progress_callback(0.0, f"ZIP file found but cannot be read - check permissions")
+                    progress_callback(
+                        0.0, f"ZIP file found but cannot be read - check permissions"
+                    )
                 return False, "ZIP file found but cannot be read due to permissions"
-            
+
             # Extract the dataset with progress reporting
-            extract_dataset(Path(str(zip_path.resolve())), silent=False, progress_callback=progress_callback)
-            
+            extract_dataset(
+                Path(str(zip_path.resolve())),
+                silent=False,
+                progress_callback=progress_callback,
+            )
+
             # Verify extraction was successful
             if folder_path.exists() and folder_path.is_dir():
                 if progress_callback:
@@ -54,9 +62,11 @@ def check_dataset_exists(progress_callback=None) -> tuple[bool, str]:
                 return True, "Dataset extracted successfully"
             else:
                 if progress_callback:
-                    progress_callback(0.0, "Extraction completed but dataset folder not found")
+                    progress_callback(
+                        0.0, "Extraction completed but dataset folder not found"
+                    )
                 return False, "Extraction completed but dataset folder not found"
-                
+
         except Exception as e:
             error_msg = f"Error extracting dataset: {e}"
             print(error_msg, file=sys.stderr)
@@ -72,5 +82,11 @@ def check_dataset_exists(progress_callback=None) -> tuple[bool, str]:
             if data_dir.exists():
                 files = list(data_dir.glob("*.zip"))
                 if files:
-                    progress_callback(0.0, f"Found other ZIP files: {', '.join(f.name for f in files)}")
-        return False, f"Neither dataset folder nor zip file found. Expected at {zip_path}"
+                    progress_callback(
+                        0.0,
+                        f"Found other ZIP files: {', '.join(f.name for f in files)}",
+                    )
+        return (
+            False,
+            f"Neither dataset folder nor zip file found. Expected at {zip_path}",
+        )

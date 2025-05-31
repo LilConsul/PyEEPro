@@ -1,6 +1,5 @@
 import streamlit as st
 from data import storage
-import polars as pl
 from app.utils import create_line_plot, render_years, create_bar_chart
 
 
@@ -68,16 +67,14 @@ def render_daily_plot(daily_data):
     available_cols = daily_data.columns
 
     x_field = None
-    sort_field = None
-    group_fields = None
 
     # Choose appropriate x field based on what's available
+    # Yehor made some refactoring, now I do this :)
     if "weekday_name" in available_cols:
         x_field = "weekday_name"
     elif "day_of_week" in available_cols:
         x_field = "day_of_week"
     else:
-        # Fallback to integer weekday if no name column exists
         for col in ["weekday", "day"]:
             if col in available_cols:
                 x_field = col
@@ -199,18 +196,11 @@ def render_seasonal_plot(seasonal_data):
         )
 
     else:  # Bar Chart option
-        yearly_data = (
-            seasonal_data.group_by(["year", "season"])
-            .agg(**{f"{metric}_avg": pl.col(metric).mean()})
-            .sort(["year", "season"])
-            .to_pandas()
-        )
-
         fig = create_bar_chart(
-            df=yearly_data,
+            data=seasonal_data,
+            metric=metric,
+            group_by_fields=["year", "season"],
             x_field=x_field,
-            y_field=f"{metric}_avg",
-            y_display=metric.replace("energy_", "").capitalize(),
             color_field=color_field,
             title=f"Seasonal Energy Consumption by {x_field.capitalize()}",
             extra_options={
@@ -237,25 +227,17 @@ def render_weekday_vs_weekend_plot(weekday_weekend_data):
         key="weekday_weekend_metric",
     )
 
-    chart_data = (
-        weekday_weekend_data.group_by(["year", "is_weekend"])
-        .agg(**{f"{metric}_avg": pl.col(metric).mean()})
-        .sort(["year", "is_weekend"])
-        .to_pandas()
-    )
-
+    # Since this is a horizontal bar chart (orientation="h"), 
+    # we need to ensure x-axis ticks (which display the values) are visible
     fig = create_bar_chart(
-        df=chart_data,
+        data=weekday_weekend_data,
+        metric=metric,
+        group_by_fields=["year", "is_weekend"],
         x_field="year",
-        y_field=f"{metric}_avg",
-        y_display=metric.replace("energy_", "").capitalize(),
         color_field="is_weekend",
         title="Weekday vs Weekend Energy Consumption by Year",
         orientation="h",
-        extra_options={
-            "barmode": "group",
-            "xaxis": dict(tickmode="linear")
-        },
+        extra_options={"barmode": "group", "yaxis": dict(tickmode="linear", dtick=1)},
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -325,3 +307,5 @@ def render_eda_tab():
         with st.expander("View Dataframe", expanded=False):
             st.dataframe(weekday_weekend_data)
 
+    with household_tab:
+        st.subheader("Household Energy Consumption Behavior")
