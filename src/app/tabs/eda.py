@@ -1,6 +1,6 @@
 import streamlit as st
 from data import storage
-from app.utils import create_energy_plot, render_years
+from app.utils import create_energy_line_plot, render_years
 
 
 def render_hourly_plot(hourly_data):
@@ -23,7 +23,7 @@ def render_hourly_plot(hourly_data):
             "Display view:", options=["Aggregated", "By Year"], horizontal=True
         )
 
-    fig = create_energy_plot(
+    fig = create_energy_line_plot(
         data=hourly_data,
         metric=metric,
         display_type=display_type,
@@ -86,7 +86,7 @@ def render_daily_plot(daily_data):
         st.error("No valid day of week column found in the data")
         return
 
-    fig = create_energy_plot(
+    fig = create_energy_line_plot(
         data=daily_data,
         metric=metric,
         display_type=display_type,
@@ -126,7 +126,7 @@ def render_weekly_plot(weekly_data):
             key="weekly_display_type",
         )
 
-    fig = create_energy_plot(
+    fig = create_energy_line_plot(
         data=weekly_data,
         metric=metric,
         display_type=display_type,
@@ -136,6 +136,49 @@ def render_weekly_plot(weekly_data):
         sort_by=["year", "week"] if display_type == "By Year" else "week",
         extra_layout_options={
             "xaxis": dict(tickmode="linear", tick0=1, dtick=4, range=[1, 53])
+        },
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_seasonal_plot(seasonal_data):
+    col1, col2 = st.columns(2)
+    with col1:
+        metric = st.selectbox(
+            "Select energy metric:",
+            options=[
+                "energy_mean",
+                "energy_median",
+                "energy_sum",
+                "energy_std",
+                "energy_max",
+            ],
+            format_func=lambda x: x.replace("energy_", "").capitalize(),
+            index=0,
+            key="seasonal_metric",
+        )
+    with col2:
+        display_type = st.radio(
+            "Display view:",
+            options=["Aggregated", "By Year"],
+            horizontal=True,
+            key="seasonal_display_type",
+        )
+
+    fig = create_energy_line_plot(
+        data=seasonal_data,
+        metric=metric,
+        display_type=display_type,
+        x_field="week",
+        x_label="Week of Season",
+        time_period="Seasonal",
+        sort_by=["season", "week"],
+        color_field="season",
+        group_fields=["season", "week"],
+        separate_years=True,
+        extra_layout_options={
+            "xaxis": dict(tickmode="linear", tick0=1, dtick=1, range=[1, 12])
         },
     )
 
@@ -183,4 +226,15 @@ def render_eda_tab():
         render_weekly_plot(weekly_data)
         with st.expander("View Dataframe", expanded=False):
             st.dataframe(weekly_data)
+        st.divider()
+
+        # Seasonal Patterns Section
+        st.markdown(f"### Seasonal Patterns | Year {render_years()}")
+        with st.spinner("Loading seasonal patterns..."):
+            seasonal_data = storage.get_seasonal_patterns(
+                years=filters.get("years", None),
+            )
+        render_seasonal_plot(seasonal_data)
+        with st.expander("View Dataframe", expanded=False):
+            st.dataframe(seasonal_data)
         st.divider()
