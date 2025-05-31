@@ -765,38 +765,6 @@ class DataProcessor:
         return household_patterns
 
     @staticmethod
-    def _load_weather_data(file_path: Path) -> pl.DataFrame:
-        """
-        Load weather data from a CSV file into a Polars DataFrame.
-
-        Args:
-            file_path: Path to the weather data CSV file.
-
-        Returns:
-            Polars DataFrame containing processed weather data.
-
-        Raises:
-            ValueError: If the file cannot be loaded or is invalid.
-        """
-        try:
-            df = pl.read_csv(file_path)
-
-            # Convert time string to datetime
-            df = df.with_columns(
-                pl.col("time")
-                .str.to_datetime("%Y-%m-%d %H:%M:%S")
-                .dt.date()
-                .alias("date")
-            )
-
-            if settings.DEBUG:
-                print(f"Loaded weather data from {file_path.name}")
-
-            return df
-        except Exception as e:
-            raise ValueError(f"Error loading weather data from {file_path}: {str(e)}")
-
-    @staticmethod
     def _process_temperature_energy_patterns(
         energy_df: pl.DataFrame, weather_df: pl.DataFrame
     ) -> pl.DataFrame:
@@ -852,9 +820,13 @@ class DataProcessor:
             ]
         )
 
-        # Prepare weather data - calculate mean temperature
+        # Prepare weather data - convert time to date and calculate mean temperature
         prepared_weather = lazy_weather_df.with_columns(
             [
+                pl.col("time")
+                .str.to_datetime("%Y-%m-%d %H:%M:%S")
+                .dt.date()
+                .alias("date"),
                 ((pl.col("temperatureMax") + pl.col("temperatureMin")) / 2).alias(
                     "temperatureMean"
                 )
@@ -1077,7 +1049,7 @@ class DataProcessor:
             ValueError: If no valid CSV files are found in the configured directories or files
         """
         energy_data = self._load_data_from_dir(settings.DAILYBLOCKS_DIR)
-        weather_data = self._load_weather_data(settings.WEATHER_DAILY_FILE)
+        weather_data = self._load_data_from_file(settings.WEATHER_DAILY_FILE)
         temperature_patterns = self._process_temperature_energy_patterns(
             energy_data, weather_data
         )
@@ -1111,7 +1083,7 @@ class DataProcessor:
             ValueError: If no valid CSV files are found in the configured directories or files
         """
         energy_data = self._load_data_from_dir(settings.HHBLOCKS_DIR)
-        weather_data = self._load_weather_data(settings.WEATHER_HOURLY_FILE)
+        weather_data = self._load_data_from_file(settings.WEATHER_HOURLY_FILE)
         hourly_patterns = self._process_temperature_hourly_energy(energy_data, weather_data)
 
         if settings.DEBUG:
