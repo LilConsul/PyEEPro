@@ -40,6 +40,17 @@ def render_temperature_energy_plot(temperature_data):
     # Convert polars dataframe to pandas for plotly compatibility
     pandas_df = temperature_data.to_pandas()
 
+    # Define temperature bin order
+    temp_bin_order = [
+        "Below 0°C",
+        "0-5°C",
+        "5-10°C",
+        "10-15°C",
+        "15-20°C",
+        "20-25°C",
+        "Above 25°C"
+    ]
+
     if chart_type == "Line chart":
         fig = px.line(
             pandas_df,
@@ -54,6 +65,9 @@ def render_temperature_energy_plot(temperature_data):
             }
         )
     elif chart_type == "Box plot":
+        # Use the custom temperature bin order
+        available_temp_bins = [tb for tb in temp_bin_order if tb in pandas_df["temp_bin"].unique()]
+
         fig = px.box(
             pandas_df,
             x="temp_bin",
@@ -65,7 +79,7 @@ def render_temperature_energy_plot(temperature_data):
                 metric: f"{metric.replace('energy_', '').capitalize()} Energy (kWh)",
                 "month_name": "Month"
             },
-            category_orders={"temp_bin": sorted(pandas_df["temp_bin"].unique())}
+            category_orders={"temp_bin": available_temp_bins}
         )
     elif chart_type == "Month comparison":
         if "month_name" in pandas_df.columns:
@@ -89,7 +103,10 @@ def render_temperature_energy_plot(temperature_data):
                     metric: f"{metric.replace('energy_', '').capitalize()} Energy (kWh)",
                     "temp_bin": "Temperature Bin"
                 },
-                category_orders={"month_name": ordered_months}
+                category_orders={
+                    "month_name": ordered_months,
+                    "temp_bin": [tb for tb in temp_bin_order if tb in pandas_df["temp_bin"].unique()]
+                }
             )
         else:
             st.error("Month data is not available for monthly comparison")
@@ -150,6 +167,19 @@ def render_temperature_energy_plot(temperature_data):
                 pl.max("avg_temperature").alias("max_temp"),
                 pl.mean("avg_temperature").alias("avg_temp"),
             ])
+
+            # Sort the bin_summary by the defined temperature bin order
+            available_temp_bins = [tb for tb in temp_bin_order if tb in bin_summary["temp_bin"].to_list()]
+            bin_summary = bin_summary.filter(pl.col("temp_bin").is_in(available_temp_bins))
+
+            # Convert to pandas for plotting
+            bin_summary_pd = bin_summary.to_pandas()
+            bin_summary_pd["temp_bin"] = pd.Categorical(bin_summary_pd["temp_bin"], categories=available_temp_bins, ordered=True)
+            bin_summary_pd = bin_summary_pd.sort_values("temp_bin")
+
+            # Convert back to polars
+            bin_summary = pl.from_pandas(bin_summary_pd)
+
             st.dataframe(bin_summary, use_container_width=True)
 
 
@@ -157,42 +187,38 @@ def render_temperature_hourly_plot(hourly_temp_data):
     """
     Render visualization for hourly temperature impact on energy consumption
     """
-    col1, col2 = st.columns(2)
+    # Always use energy as the metric (removing choice)
+    energy_col = "energy"
 
-    # Determine available metrics from the actual data columns
-    available_metrics = []
-    if "energy" in hourly_temp_data.columns:
-        available_metrics.append("energy")
-    if "avg_humidity" in hourly_temp_data.columns:
-        available_metrics.append("avg_humidity")
-    if "count" in hourly_temp_data.columns:
-        available_metrics.append("count")
-
-    if not available_metrics:
-        st.error("No energy or humidity metrics available in the hourly temperature data.")
+    # Check if energy column is available
+    if energy_col not in hourly_temp_data.columns:
+        st.error("Energy data is not available in the hourly temperature data.")
         return
 
-    with col1:
-        metric = st.selectbox(
-            "Select metric:",
-            options=available_metrics,
-            format_func=lambda x: x.replace("energy", "Energy").replace("avg_", "").replace("count", "Data Count").capitalize(),
-            index=0,
-            key="temp_hourly_metric"
-        )
-
-    with col2:
-        chart_type = st.radio(
-            "Chart type:",
-            options=["Heatmap", "Line chart", "3D View", "Calendar view"],
-            horizontal=True,
-            key="temp_hourly_chart_type",
-        )
+    chart_type = st.radio(
+        "Chart type:",
+        options=["Heatmap", "Line chart", "3D View", "Calendar view"],
+        horizontal=True,
+        key="temp_hourly_chart_type",
+    )
 
     # Convert polars dataframe to pandas for plotly compatibility
     pandas_df = hourly_temp_data.to_pandas()
 
-    energy_col = metric  # Use the selected metric
+    # Define temperature bin order
+    temp_bin_order = [
+        "Below 0°C",
+        "0-5°C",
+        "5-10°C",
+        "10-15°C",
+        "15-20°C",
+        "20-25°C",
+        "Above 25°C"
+    ]
+
+    # Get available temp bins in order
+    if "temp_bin" in pandas_df.columns:
+        available_temp_bins = [tb for tb in temp_bin_order if tb in pandas_df["temp_bin"].unique()]
 
     if chart_type == "Heatmap":
         if "temp_bin" in pandas_df.columns:
@@ -207,17 +233,22 @@ def render_temperature_hourly_plot(hourly_temp_data):
             # Create heatmap using px.imshow
             fig = px.imshow(
                 pivot_df.set_index("hour"),
-                labels=dict(x="Temperature Bin", y="Hour of Day", color=f"{energy_col.replace('energy', 'Energy').replace('avg_', '').capitalize()}"),
-                x=pivot_df.columns[1:],  # Temperature bins
+                labels=dict(x="Temperature Bin", y="Hour of Day", color="Energy"),
+                x=[col for col in pivot_df.columns if col != "hour"],  # Temperature bins
                 y=pivot_df["hour"],      # Hours
                 color_continuous_scale="Viridis",
-                title=f"Hourly {energy_col.replace('energy', 'Energy').replace('avg_', '').replace('count', 'Data Count').capitalize()} by Temperature Bin"
+                title=f"Hourly Energy Consumption by Temperature Bin"
             )
             fig.update_layout(
                 xaxis_title="Temperature Bin",
                 yaxis_title="Hour of Day",
                 yaxis=dict(tickmode="linear", tick0=0, dtick=1)
             )
+
+            # Sort x-axis categories based on temperature bin order
+            if available_temp_bins:
+                fig.update_xaxes(categoryorder='array', categoryarray=available_temp_bins)
+
         else:
             st.error("Temperature bin data is not available for heatmap visualization")
             return
@@ -230,16 +261,17 @@ def render_temperature_hourly_plot(hourly_temp_data):
                 y=energy_col,
                 color="temp_bin",
                 markers=True,
-                title=f"Hourly {energy_col.replace('energy', 'Energy').replace('avg_', '').replace('count', 'Data Count').capitalize()} by Temperature Bin",
+                title=f"Hourly Energy Consumption by Temperature Bin",
                 labels={
                     "hour": "Hour of Day",
-                    energy_col: f"{energy_col.replace('energy', 'Energy').replace('avg_', '').replace('count', 'Data Count').capitalize()}",
+                    energy_col: "Energy Consumption (kWh)",
                     "temp_bin": "Temperature Bin"
-                }
+                },
+                category_orders={"temp_bin": available_temp_bins} if available_temp_bins else None
             )
             fig.update_layout(
                 xaxis=dict(tickmode="linear", tick0=0, dtick=1, range=[0, 23]),
-                yaxis_title=f"{energy_col.replace('energy', 'Energy').replace('avg_', '').replace('count', 'Data Count').capitalize()}",
+                yaxis_title="Energy Consumption (kWh)",
                 legend_title="Temperature Bin"
             )
         else:
@@ -255,20 +287,21 @@ def render_temperature_hourly_plot(hourly_temp_data):
                 y="avg_temperature",
                 z=energy_col,
                 color="temp_bin",
-                title=f"3D View of Hour, Temperature, and {energy_col.replace('energy', 'Energy').replace('avg_', '').replace('count', 'Data Count').capitalize()}",
+                title=f"3D View of Hour, Temperature, and Energy Consumption",
                 labels={
                     "hour": "Hour of Day",
                     "avg_temperature": "Temperature (°C)",
-                    energy_col: f"{energy_col.replace('energy', 'Energy').replace('avg_', '').replace('count', 'Data Count').capitalize()}"
+                    energy_col: "Energy Consumption (kWh)"
                 },
-                opacity=0.7
+                opacity=0.7,
+                category_orders={"temp_bin": available_temp_bins} if available_temp_bins else None
             )
             # Improve 3D layout
             fig.update_layout(
                 scene=dict(
                     xaxis_title="Hour of Day",
                     yaxis_title="Temperature (°C)",
-                    zaxis_title=f"{energy_col.replace('energy', 'Energy').replace('avg_', '').replace('count', 'Data Count').capitalize()}",
+                    zaxis_title="Energy Consumption (kWh)",
                 )
             )
         else:
@@ -276,8 +309,6 @@ def render_temperature_hourly_plot(hourly_temp_data):
             return
 
     elif chart_type == "Calendar view":
-        st.warning("This visualization requires day-of-year data which may not be available. Showing hour patterns instead.")
-
         # Create a circular heatmap (clock view)
         if "hour" in pandas_df.columns:
             hourly_avg = pandas_df.groupby("hour")[energy_col].mean().reset_index()
@@ -292,12 +323,12 @@ def render_temperature_hourly_plot(hourly_temp_data):
                 marker_color=hourly_avg[energy_col],
                 marker_colorscale="Viridis",
                 hoverinfo="text",
-                hovertext=[f"Hour {h}: {v:.2f}" for h, v in zip(hourly_avg["hour"], hourly_avg[energy_col])],
+                hovertext=[f"Hour {h}: {v:.2f} kWh" for h, v in zip(hourly_avg["hour"], hourly_avg[energy_col])],
             ))
 
             # Update layout
             fig.update_layout(
-                title=f"24-Hour Clock View of {energy_col.replace('energy', 'Energy').replace('avg_', '').replace('count', 'Data Count').capitalize()}",
+                title=f"24-Hour Clock View of Energy Consumption",
                 polar=dict(
                     radialaxis=dict(showticklabels=False, ticks=""),
                     angularaxis=dict(
@@ -314,7 +345,7 @@ def render_temperature_hourly_plot(hourly_temp_data):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # New component: Temperature impact summary stats
+    # Temperature impact summary stats
     with st.expander("Temperature Impact Statistics", expanded=False):
         col1, col2 = st.columns(2)
 
@@ -358,19 +389,6 @@ def render_temperature_hourly_plot(hourly_temp_data):
                     delta=None,
                     help="Number of different temperature ranges in the data"
                 )
-
-    # Additional information about the datasets
-    with st.expander("Hourly Temperature Impact Details", expanded=False):
-        st.markdown("""
-        ### Understanding the Hourly Temperature Impact
-        
-        This analysis shows how temperature affects energy consumption across different hours of the day:
-        
-        - **Temperature Bins**: Data grouped into temperature ranges
-        - **Hourly Patterns**: Reveals how temperature sensitivity varies throughout the day
-        - **Peak Hours**: Identify when temperature has the strongest impact on consumption
-        - **Humidity Factor**: Analyze the relationship between humidity and energy use
-        """)
 
 
 def render_weather_tab():
