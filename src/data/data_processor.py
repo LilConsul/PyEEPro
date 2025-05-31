@@ -36,6 +36,25 @@ class DataProcessor:
         return pl.concat(lazy_frames).collect()
 
     @staticmethod
+    def _load_data_from_file(file: Path) -> pl.DataFrame:
+        """
+        Load a single CSV file into a Polars DataFrame.
+
+        Args:
+            file: Path to the CSV file.
+
+        Returns:
+            Polars DataFrame containing the records from the CSV file.
+        """
+        try:
+            df = pl.read_csv(file)
+            if settings.DEBUG:
+                print(f"Loaded data from {file.name}")
+            return df
+        except Exception as e:
+            raise ValueError(f"Error loading data from {file}: {str(e)}")
+
+    @staticmethod
     def _process_hourly_patterns(df: pl.DataFrame) -> pl.DataFrame:
         """
         Convert half-hourly energy consumption data to hourly patterns and calculate statistics.
@@ -506,9 +525,12 @@ class DataProcessor:
         return seasonal_patterns
 
     @staticmethod
-    def _process_weekend_patterns(df: pl.DataFrame) -> pl.DataFrame:
+    def _process_weekday_vs_weekend_patterns(
+        df: pl.DataFrame, holidays_df: pl.DataFrame
+    ) -> pl.DataFrame:
         """
         Process daily energy consumption data to extract patterns by weekday vs weekend.
+        Bank holidays are treated as weekend days regardless of the actual day of week.
 
         This method analyzes daily energy consumption data and aggregates it by weekday/weekend status,
         allowing for identification of consumption patterns specific to weekdays versus weekends.
@@ -539,17 +561,35 @@ class DataProcessor:
         """
         # Use lazy evaluation for query optimization
         lazy_df = df.lazy()
+        holidays_lazy = holidays_df.lazy()
+
+        # Prepare holidays list - convert to date format
+        holidays_list = (
+            holidays_lazy.select(
+                pl.col("Bank holidays").str.to_date().alias("holiday_date")
+            )
+            .collect()
+            .get_column("holiday_date")
+            .to_list()
+        )
 
         # Extract year and determine if day is weekend
         result = (
             lazy_df.with_columns(
                 [
+                    pl.col("day").str.to_date().alias("date"),
                     pl.col("day").str.to_date().dt.year().alias("year"),
                     pl.col("day").str.to_date().dt.weekday().alias("weekday"),
                 ]
             )
             # Add is_weekend flag (weekday in Polars: 1=Monday, ..., 7=Sunday)
-            .with_columns((pl.col("weekday") >= 6).alias("is_weekend"))
+            # Also mark holidays as weekend
+            .with_columns((pl.col("weekday") >= 6).alias("is_regular_weekend"))
+            .with_columns(
+                (
+                    pl.col("is_regular_weekend") | pl.col("date").is_in(holidays_list)
+                ).alias("is_weekend")
+            )
             .group_by(["year", "is_weekend"])
             .agg(
                 energy_median=pl.col("energy_median").mean(),
@@ -567,7 +607,7 @@ class DataProcessor:
 
         return result
 
-    def get_weekend_patterns(self) -> pl.DataFrame:
+    def get_weekday_vs_weekend_patterns(self) -> pl.DataFrame:
         """
         Process energy consumption data to extract patterns by weekday vs weekend.
 
@@ -593,7 +633,8 @@ class DataProcessor:
             ValueError: If no valid CSV files are found in the configured directory
         """
         data = self._load_data_from_dir(settings.DAILYBLOCKS_DIR)
-        weekend_patterns = self._process_weekend_patterns(data)
+        holidays = self._load_data_from_file(settings.HOLIDAYS_FILE)
+        weekend_patterns = self._process_weekday_vs_weekend_patterns(data, holidays)
 
         if settings.DEBUG:
             with pl.Config(tbl_rows=-1, tbl_cols=-1):
