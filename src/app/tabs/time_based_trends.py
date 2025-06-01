@@ -1,8 +1,6 @@
 import streamlit as st
-from data import storage
 from app.utils import create_line_plot, render_years, create_bar_chart
-from app.tabs.household import render_household_tab
-from app.tabs.weather import render_weather_tab
+from data import storage
 
 
 def render_hourly_plot(hourly_data):
@@ -245,72 +243,60 @@ def render_weekday_vs_weekend_plot(weekday_weekend_data):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def render_eda_tab():
+def render_time_based_tab():
     filters = st.session_state.get("filters", {})
-    st.header("📊 Exploratory Data Analysis")
-    time_based_tab, household_tab, weather_tab = st.tabs(
-        ["📈 Time-based trends", "📊 Household behavior", "📉 Weather impact"]
-    )
+    st.subheader("Time-based Energy Consumption Patterns")
 
-    with time_based_tab:
-        st.subheader("Time-based Energy Consumption Patterns")
+    # Hourly Patterns Section
+    st.markdown(f"### Hourly Patterns | Year {render_years()}")
+    with st.spinner("Loading hourly patterns..."):
+        hourly_data = storage.get_hourly_patterns(
+            years=filters.get("years", None),
+        )
+    render_hourly_plot(hourly_data)
+    with st.expander("View Dataframe", expanded=False):
+        st.dataframe(hourly_data)
+    st.divider()
 
-        # Hourly Patterns Section
-        st.markdown(f"### Hourly Patterns | Year {render_years()}")
-        with st.spinner("Loading hourly patterns..."):
-            hourly_data = storage.get_hourly_patterns(
-                years=filters.get("years", None),
-            )
-        render_hourly_plot(hourly_data)
-        with st.expander("View Dataframe", expanded=False):
-            st.dataframe(hourly_data)
-        st.divider()
+    # Daily Patterns Section
+    st.markdown(f"### Daily Patterns | Year {render_years()}")
+    with st.spinner("Loading daily patterns..."):
+        daily_data = storage.get_daily_patterns(
+            years=filters.get("years", None),
+        )
+    render_daily_plot(daily_data)
+    with st.expander("View Dataframe", expanded=False):
+        st.dataframe(daily_data)
+    st.divider()
 
-        # Daily Patterns Section
-        st.markdown(f"### Daily Patterns | Year {render_years()}")
-        with st.spinner("Loading daily patterns..."):
-            daily_data = storage.get_daily_patterns(
-                years=filters.get("years", None),
-            )
-        render_daily_plot(daily_data)
-        with st.expander("View Dataframe", expanded=False):
-            st.dataframe(daily_data)
-        st.divider()
+    # Weekly Patterns Section
+    st.markdown(f"### Weekly Patterns | Year {render_years()}")
+    with st.spinner("Loading weekly patterns..."):
+        weekly_data = storage.get_weekly_patterns(
+            years=filters.get("years", None),
+        )
+    render_weekly_plot(weekly_data)
+    with st.expander("View Dataframe", expanded=False):
+        st.dataframe(weekly_data)
+    st.divider()
 
-        # Weekly Patterns Section
-        st.markdown(f"### Weekly Patterns | Year {render_years()}")
-        with st.spinner("Loading weekly patterns..."):
-            weekly_data = storage.get_weekly_patterns(
-                years=filters.get("years", None),
-            )
-        render_weekly_plot(weekly_data)
-        with st.expander("View Dataframe", expanded=False):
-            st.dataframe(weekly_data)
-        st.divider()
+    # Seasonal Patterns Section
+    st.markdown(f"### Seasonal Patterns | Year {render_years()}")
+    with st.spinner("Loading seasonal patterns..."):
+        seasonal_data = storage.get_seasonal_patterns(
+            years=filters.get("years", None),
+        )
+    render_seasonal_plot(seasonal_data)
+    with st.expander("View Dataframe", expanded=False):
+        st.dataframe(seasonal_data)
+    st.divider()
 
-        # Seasonal Patterns Section
-        st.markdown(f"### Seasonal Patterns | Year {render_years()}")
-        with st.spinner("Loading seasonal patterns..."):
-            seasonal_data = storage.get_seasonal_patterns(
-                years=filters.get("years", None),
-            )
-        render_seasonal_plot(seasonal_data)
-        with st.expander("View Dataframe", expanded=False):
-            st.dataframe(seasonal_data)
-        st.divider()
-
-        # Weekday vs Weekend Patterns Section
-        st.markdown(f"### Weekday vs Weekend Patterns | Year {render_years()}")
-        with st.spinner("Loading weekday vs weekend patterns..."):
-            weekday_weekend_data = storage.get_weekday_vs_weekend_patterns(
-                years=filters.get("years", None),
-            )
-        render_weekday_vs_weekend_plot(weekday_weekend_data)
-        with st.expander("View Dataframe", expanded=False):
-            st.dataframe(weekday_weekend_data)
-
-    with household_tab:
-        render_household_tab()
-
-    with weather_tab:
-        render_weather_tab()
+    # Weekday vs Weekend Patterns Section
+    st.markdown(f"### Weekday vs Weekend Patterns | Year {render_years()}")
+    with st.spinner("Loading weekday vs weekend patterns..."):
+        weekday_weekend_data = storage.get_weekday_vs_weekend_patterns(
+            years=filters.get("years", None),
+        )
+    render_weekday_vs_weekend_plot(weekday_weekend_data)
+    with st.expander("View Dataframe", expanded=False):
+        st.dataframe(weekday_weekend_data)

@@ -1,7 +1,6 @@
 import streamlit as st
-from app.config import setup_page_custom_css
 from app.sidebar import render_sidebar
-from app.tabs import render_eda_tab, render_not_found_tab
+from app.tabs import render_household_tab, render_weather_tab, render_time_based_tab
 from scripts import handle_dataset_availability
 
 
@@ -12,8 +11,6 @@ def setup_app():
         page_icon="⚡",
         layout="wide",
     )
-
-    setup_page_custom_css()
 
     st.markdown(
         "<h1>⚡ Smart Meters Energy Consumption Analysis</h1>",
@@ -45,24 +42,19 @@ def render_app_content():
     # Get user input from sidebar
     render_sidebar()
 
-    # Create tabs for different analyses
-    # tab1, tab2, tab3, tab4 = st.tabs(
-    #     [
-    #         "📊 Exploratory Data Analysis",
-    #         "🧹 Data Cleaning & Feature Engineering",
-    #         "💡 Interesting Findings",
-    #         "📈 Visualizations",
-    #     ]
-    # )
+    # st.header("📊 Exploratory Data Analysis")
+    time_based_tab, household_tab, weather_tab = st.tabs(
+        ["📈 Time-based trends", "📊 Household behavior", "📉 Weather impact"]
+    )
 
-    # with tab1:
-    render_eda_tab()
-    # with tab2:
-    #     render_not_found_tab()
-    # with tab3:
-    #     render_not_found_tab()
-    # with tab4:
-    #     render_not_found_tab()
+    with time_based_tab:
+        render_time_based_tab()
+
+    with household_tab:
+        render_household_tab()
+
+    with weather_tab:
+        render_weather_tab()
 
 
 def main():
