@@ -6,7 +6,7 @@ import polars as pl
 from data import storage
 
 
-def render_tariff_comparison(household_data):
+def plot_tariff_comparison(household_data):
     st.subheader("Tariff Type Comparison")
 
     col1, col2 = st.columns(2)
@@ -86,17 +86,8 @@ def render_tariff_comparison(household_data):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    st.success("""
-    ### 🔌 Tariff Type Comparison Insights
-    
-    **Key observations:**
-    * **Standard vs. Time-of-Use**: ToU customers generally show lower consumption compared to standard tariff users
-    * **Affluent groups**: Show the highest consumption differential between tariff types, with Std tariff users consuming significantly more
-    * **Behavior change**: ToU tariffs appear to encourage more efficient consumption patterns across all demographic groups
-    """)
 
-
-def render_acorn_analysis(household_data):
+def plot_acorn_analysis(household_data):
     st.subheader("ACORN Group Analysis")
 
     col1, col2 = st.columns(2)
@@ -173,16 +164,8 @@ def render_acorn_analysis(household_data):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    st.success("""
-    ### 👥 ACORN Group Analysis Insights
-    
-    **Key observations:**
-    * **Affluent segments**: Show consistently higher energy consumption than other groups, while being the biggest group in terms of household count
-    * **Adversity segments**: Groups K-Q (Adversity) show much lower consumption, while being top-2 in terms of household count. This means that in average, these consumers shows much lower energy consumption than the Affluent groups
-    """)
 
-
-def render_consumption_comparison(household_data):
+def plot_consumption_comparison(household_data):
     st.subheader("High vs. Low Consumers")
 
     col1, col2, col3 = st.columns([1, 1, 1])
@@ -372,21 +355,8 @@ def render_consumption_comparison(household_data):
 
     st.plotly_chart(fig2, use_container_width=True)
 
-    st.success("""
-    ### 📊 ACORN Distribution Within Consumer Groups
-    
-    **What you're seeing in the chart:**
-    * This chart shows the socioeconomic makeup of each consumption group
-    * The percentages represent what portion of each consumer group belongs to a specific ACORN category
-    
-    **Key observations:**
-    * **Economic correlation**: There's a clear socioeconomic gradient in energy consumption, with affluent households dominating high consumption groups. It is logically expected that the affluent households consume more energy, since they live in bigger houses, have more appliances, etc.
-    * **Adversity in low consumption**: Groups K-Q (lower income and financial adversity) make up the majority of low consumers
-    * **Mixed middle**: Medium consumer groups show a more balanced mix of socioeconomic backgrounds. This suggests that middle-income households have more diverse energy consumption patterns, possibly due to varying household sizes and lifestyles.
-    """)
 
-
-def render_household_distribution(household_data):
+def plot_household_distribution(household_data):
     st.subheader("Household Distribution")
 
     col1, col2 = st.columns(2)
@@ -447,22 +417,6 @@ def render_household_distribution(household_data):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    st.success("""
-    ### 🔍 Household Distribution Insights
-    
-    **What you're seeing in the chart:**
-    * Each point represents a group of households with the same ACORN group and tariff type
-    * The position shows their mean and median/maximum energy consumption
-    * The size of each bubble indicates how many households are in that group
-    * Colors differentiate between tariff types or ACORN groups
-    
-    **Key observations:**
-    * **Correlation patterns**: There's a strong positive correlation between mean and median/maximum consumption metrics
-    * **Tariff clustering**: Time-of-Use (ToU) households tend to cluster in lower consumption regions compared to Standard tariff households
-    * **ACORN segregation**: Clear separation of ACORN groups, with Affluent (A-E) consistently in higher consumption regions
-    * **Outlier behavior**: Some household groups show unusually high maximum consumption despite moderate mean values, indicating occasional high usage spikes
-    """)
-
 
 def render_household_tab():
     st.header("📊 Household Energy Consumption Analysis")
@@ -481,13 +435,6 @@ def render_household_tab():
     if filters.get("acorn"):
         household_data = household_data.filter(pl.col("Acorn").is_in(filters["acorn"]))
 
-    if household_data.height == 0:
-        st.warning(
-            "No data available with the current filters. Please adjust your filters."
-        )
-        return
-
-    # Display key metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric(
@@ -506,7 +453,6 @@ def render_household_tab():
         avg_energy = household_data.select(pl.mean("energy_mean")).item()
         st.metric("Avg. Energy Consumption", f"{avg_energy:.3f} kWh")
 
-    # Create tabs for different analyses
     tab1, tab2, tab3, tab4 = st.tabs(
         [
             "📊 Tariff Comparison",
@@ -515,18 +461,64 @@ def render_household_tab():
             "🔍 Household Distribution",
         ]
     )
-    
+
     with tab1:
-        render_tariff_comparison(household_data)
+        plot_tariff_comparison(household_data)
+
+        st.success("""
+        ### 🔌 Tariff Type Comparison Insights
+
+        **Key observations:**
+        * **Standard vs. Time-of-Use**: ToU customers generally show lower consumption compared to standard tariff users
+        * **Affluent groups**: Show the highest consumption differential between tariff types, with Std tariff users consuming significantly more
+        * **Behavior change**: ToU tariffs appear to encourage more efficient consumption patterns across all demographic groups
+        """)
 
     with tab2:
-        render_acorn_analysis(household_data)
+        plot_acorn_analysis(household_data)
+
+        st.success("""
+        ### 👥 ACORN Group Analysis Insights
+
+        **Key observations:**
+        * **Affluent segments**: Show consistently higher energy consumption than other groups, while being the biggest group in terms of household count
+        * **Adversity segments**: Groups K-Q (Adversity) show much lower consumption, while being top-2 in terms of household count. This means that in average, these consumers shows much lower energy consumption than the Affluent groups
+        """)
 
     with tab3:
-        render_consumption_comparison(household_data)
+        plot_consumption_comparison(household_data)
+
+        st.success("""
+        ### 📊 ACORN Distribution Within Consumer Groups
+
+        **What you're seeing in the chart:**
+        * This chart shows the socioeconomic makeup of each consumption group
+        * The percentages represent what portion of each consumer group belongs to a specific ACORN category
+
+        **Key observations:**
+        * **Economic correlation**: There's a clear socioeconomic gradient in energy consumption, with affluent households dominating high consumption groups. It is logically expected that the affluent households consume more energy, since they live in bigger houses, have more appliances, etc.
+        * **Adversity in low consumption**: Groups K-Q (lower income and financial adversity) make up the majority of low consumers
+        * **Mixed middle**: Medium consumer groups show a more balanced mix of socioeconomic backgrounds. This suggests that middle-income households have more diverse energy consumption patterns, possibly due to varying household sizes and lifestyles.
+        """)
 
     with tab4:
-        render_household_distribution(household_data)
+        plot_household_distribution(household_data)
+
+        st.success("""
+        ### 🔍 Household Distribution Insights
+
+        **What you're seeing in the chart:**
+        * Each point represents a group of households with the same ACORN group and tariff type
+        * The position shows their mean and median/maximum energy consumption
+        * The size of each bubble indicates how many households are in that group
+        * Colors differentiate between tariff types or ACORN groups
+
+        **Key observations:**
+        * **Correlation patterns**: There's a strong positive correlation between mean and median/maximum consumption metrics
+        * **Tariff clustering**: Time-of-Use (ToU) households tend to cluster in lower consumption regions compared to Standard tariff households
+        * **ACORN segregation**: Clear separation of ACORN groups, with Affluent (A-E) consistently in higher consumption regions
+        * **Outlier behavior**: Some household groups show unusually high maximum consumption despite moderate mean values, indicating occasional high usage spikes
+        """)
     
     # Show raw data in an expander
     with st.expander("View Raw Data", expanded=False):
