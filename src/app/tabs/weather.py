@@ -146,52 +146,16 @@ def render_temperature_energy_plot(temperature_data):
 
     # Add temperature distribution analysis
     with st.expander("Temperature Distribution Analysis"):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            # Temperature distribution histogram
-            temp_hist = px.histogram(
-                pandas_df,
-                x="avg_temperature",
-                nbins=20,
-                title="Temperature Distribution",
-                labels={"avg_temperature": "Average Temperature (°C)"},
-                color_discrete_sequence=["skyblue"],
-            )
-            st.plotly_chart(temp_hist, use_container_width=True)
-
-        with col2:
-            # Energy metric vs Temperature correlation
-            if "avg_temperature" in pandas_df.columns:
-                corr = pandas_df[[metric, "avg_temperature"]].corr().iloc[0, 1]
-                st.metric(
-                    label=f"Correlation: Temperature vs {metric.replace('energy_', '').capitalize()}",
-                    value=f"{corr:.2f}",
-                    delta=None,
-                    help="Pearson correlation coefficient between temperature and energy metric",
-                )
-
-                # Add more insights based on correlation value
-                if corr > 0.7:
-                    st.info(
-                        "Strong positive correlation: Energy consumption increases significantly with temperature"
-                    )
-                elif corr > 0.3:
-                    st.info(
-                        "Moderate positive correlation: Energy consumption tends to increase with temperature"
-                    )
-                elif corr > -0.3:
-                    st.info(
-                        "Weak correlation: Temperature has limited impact on energy consumption"
-                    )
-                elif corr > -0.7:
-                    st.info(
-                        "Moderate negative correlation: Energy consumption tends to decrease with temperature"
-                    )
-                else:
-                    st.info(
-                        "Strong negative correlation: Energy consumption decreases significantly with temperature"
-                    )
+        # Temperature distribution histogram
+        temp_hist = px.histogram(
+            pandas_df,
+            x="avg_temperature",
+            nbins=20,
+            title="Temperature Distribution",
+            labels={"avg_temperature": "Average Temperature (°C)"},
+            color_discrete_sequence=["skyblue"],
+        )
+        st.plotly_chart(temp_hist, use_container_width=True)
 
     with st.expander("View Temperature Bins"):
         if "temp_bin" in pandas_df.columns:
