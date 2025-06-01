@@ -209,7 +209,7 @@ def render_consumption_comparison(household_data):
     consumption_df = pd.concat(consumption_groups)
     
     # Create summary statistics for each consumption group
-    summary_stats = consumption_df.groupby("consumption_group").agg({
+    summary_stats = consumption_df.groupby("consumption_group", observed=False).agg({
         "energy_mean": "mean",
         "energy_median": "mean",
         "energy_max": "mean",
@@ -249,10 +249,10 @@ def render_consumption_comparison(household_data):
     st.plotly_chart(fig1, use_container_width=True)
     
     # Distribution of ACORN groups within each consumer group
-    acorn_dist = consumption_df.groupby(["consumption_group", "Acorn_grouped"]).size().reset_index(name="count")
-    
+    acorn_dist = consumption_df.groupby(["consumption_group", "Acorn_grouped"], observed=False).size().reset_index(name="count")
+
     # Calculate percentages within each consumption group
-    total_by_group = acorn_dist.groupby("consumption_group")["count"].transform("sum")
+    total_by_group = acorn_dist.groupby("consumption_group", observed=False)["count"].transform("sum")
     acorn_dist["percentage"] = (acorn_dist["count"] / total_by_group * 100).round(1)
     
     fig2 = px.bar(
