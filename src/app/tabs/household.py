@@ -227,7 +227,7 @@ def plot_consumption_comparison(household_data):
     df["quantile_group"] = pd.qcut(df[metric], q=quantiles, labels=labels)
 
     summary_stats = (
-        df.groupby("quantile_group")
+        df.groupby("quantile_group", observed=False)
         .agg(
             {
                 "energy_mean": "mean",
@@ -316,11 +316,15 @@ def plot_consumption_comparison(household_data):
 
     # Distribution of ACORN groups within each consumer group
     acorn_dist = (
-        df.groupby(["quantile_group", "Acorn_grouped"]).size().reset_index(name="count")
+        df.groupby(["quantile_group", "Acorn_grouped"], observed=False)
+        .size()
+        .reset_index(name="count")
     )
 
     # Calculate percentages within each consumption group
-    total_by_group = acorn_dist.groupby("quantile_group")["count"].transform("sum")
+    total_by_group = acorn_dist.groupby("quantile_group", observed=False)[
+        "count"
+    ].transform("sum")
     acorn_dist["percentage"] = (acorn_dist["count"] / total_by_group * 100).round(1)
 
     # Ensure groups are displayed in the correct order
