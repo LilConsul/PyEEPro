@@ -18,7 +18,7 @@ def setup_app():
     )
     st.markdown("""
         This app analyzes time-based patterns in energy consumption data from Smart Meters in London.
-        Upload your data and explore hourly, daily, weekly, and seasonal trends.
+        Use the sidebar to select filters and explore the data interactively.
     """)
 
 
@@ -39,7 +39,6 @@ def initialize_session_state():
 
 def render_app_content():
     """Render the main application content"""
-    # Get user input from sidebar
     render_sidebar()
 
     # st.header("📊 Exploratory Data Analysis")

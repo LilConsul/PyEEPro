@@ -37,6 +37,18 @@ def render_hourly_plot(hourly_data):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+    
+    st.success("""
+    ### 🕒 Hourly Consumption Analysis
+    
+    **Key observations:**
+    * **Night hours (0-5)**: Low energy consumption during sleeping hours
+    * **Morning peak (7-8)**: Increased usage during morning routines
+    * **Daytime (9-15)**: Relatively stable consumption
+    * **Evening peak (16-20)**: Highest consumption when people return home, turning on lights and appliances, having dinner
+    * **Late night drop (21-23)**: Consumption tapers off as people go to bed
+    These patterns typically reflect residential consumption cycles, influenced by work schedules and daylight availability.
+    """)
 
 
 def render_daily_plot(daily_data):
@@ -98,6 +110,15 @@ def render_daily_plot(daily_data):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+    
+    st.success("""
+    ### 📅 Daily Consumption Patterns
+    
+    **Key observations:**
+    * **Weekday vs Weekend**: Notice the typical rise on weekends, more people stay at home using appliances
+    * **Monday transitions**: Usually shows a ramp-down effect from weekend mode to work mode. Huge consumption drop
+    * **Friday wind-up**: Shows higher consumption as people prepare for the weekend
+    """)
 
 
 def render_weekly_plot(weekly_data):
@@ -138,6 +159,15 @@ def render_weekly_plot(weekly_data):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+    
+    st.success("""
+    ### 📊 Weekly Consumption Trends
+    
+    **Key observations:**
+    * **Winter Effect**: Notice how weeks in winter months (December-February) shows higher consumption.
+    * **Holiday periods**: Weeks with holidays often show distinctive patterns with spikes
+    * **Lowest Consumption**: Lowest consumption of all weeks is usually seen in summer months (June-August) when people are on vacation and staying away from home. Also during summer, days are longer, so less energy is used for lighting.
+    """)
 
 
 def render_seasonal_plot(seasonal_data):
@@ -210,6 +240,16 @@ def render_seasonal_plot(seasonal_data):
         )
 
     st.plotly_chart(fig, use_container_width=True)
+    
+    st.success("""
+    ### 🌦️ Seasonal Energy Patterns
+    
+    **Key observations:**
+    * **Winter**: Shows higher consumption in cold London winters due to heating needs and much shorter daylight hours
+    * **Summer**: Expectedly shows the lowest consumption, as days are longer and people are often away on vacation with grills, pools, and outdoor activities :)
+    * **Shoulder seasons**: Spring/Fall often show most moderate consumption
+    * **Year-over-year**: Comparing years we can see how consumption patterns doesn't change much.
+    """)
 
 
 def render_weekday_vs_weekend_plot(weekday_weekend_data):
@@ -241,6 +281,15 @@ def render_weekday_vs_weekend_plot(weekday_weekend_data):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+    
+    st.success("""
+    ### 🏠 Weekday vs Weekend Analysis
+    
+    **Key observations:**
+    * **What is Weekday vs Weekend?**: This analysis takes into account that weekends are sometimes can be Monday-Friday, since holidays can fall on any day of the week. 
+    * **Occupancy patterns**: Weekends typically show higher energy consumption as people are home more often, using appliances, cooking, and engaging in leisure activities.
+    * **Year-over-year changes**: Changes in weekend/weekday ratio may indicate lifestyle or usage shifts. Interestingly enough, that 2011 shows the most consumption overall. 
+    """)
 
 
 def render_time_based_tab():
