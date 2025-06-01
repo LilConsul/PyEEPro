@@ -239,7 +239,7 @@ def render_temperature_hourly_plot(hourly_temp_data):
 
     chart_type = st.radio(
         "Chart type:",
-        options=["Heatmap", "Line chart", "3D View", "Calendar view"],
+        options=["Heatmap", "Line chart", "3D View"],
         horizontal=True,
         key="temp_hourly_chart_type",
     )
@@ -359,96 +359,6 @@ def render_temperature_hourly_plot(hourly_temp_data):
             st.error("Required data is not available for 3D visualization")
             return
 
-    elif chart_type == "Calendar view":
-        # Create a circular heatmap (clock view)
-        if "hour" in pandas_df.columns:
-            hourly_avg = pandas_df.groupby("hour")[energy_col].mean().reset_index()
-
-            # Create a radial bar chart
-            fig = go.Figure()
-
-            fig.add_trace(
-                go.Barpolar(
-                    r=hourly_avg[energy_col].tolist(),
-                    theta=[
-                        (h * 15) for h in hourly_avg["hour"]
-                    ],  # Convert to degrees (15° per hour)
-                    width=14,  # Width of each bar in degrees
-                    marker_color=hourly_avg[energy_col],
-                    marker_colorscale="Viridis",
-                    hoverinfo="text",
-                    hovertext=[
-                        f"Hour {h}: {v:.2f} kWh"
-                        for h, v in zip(hourly_avg["hour"], hourly_avg[energy_col])
-                    ],
-                )
-            )
-
-            # Update layout
-            fig.update_layout(
-                title=f"24-Hour Clock View of Energy Consumption",
-                polar=dict(
-                    radialaxis=dict(showticklabels=False, ticks=""),
-                    angularaxis=dict(
-                        tickvals=[
-                            0,
-                            15,
-                            30,
-                            45,
-                            60,
-                            75,
-                            90,
-                            105,
-                            120,
-                            135,
-                            150,
-                            165,
-                            180,
-                            195,
-                            210,
-                            225,
-                            240,
-                            255,
-                            270,
-                            285,
-                            300,
-                            315,
-                            330,
-                            345,
-                        ],
-                        ticktext=[
-                            "12 AM",
-                            "1 AM",
-                            "2 AM",
-                            "3 AM",
-                            "4 AM",
-                            "5 AM",
-                            "6 AM",
-                            "7 AM",
-                            "8 AM",
-                            "9 AM",
-                            "10 AM",
-                            "11 AM",
-                            "12 PM",
-                            "1 PM",
-                            "2 PM",
-                            "3 PM",
-                            "4 PM",
-                            "5 PM",
-                            "6 PM",
-                            "7 PM",
-                            "8 PM",
-                            "9 PM",
-                            "10 PM",
-                            "11 PM",
-                        ],
-                    ),
-                ),
-            )
-        else:
-            st.error("Hour data is not available for calendar view")
-            return
-
     st.plotly_chart(fig, use_container_width=True)
 
     st.success("""
@@ -458,7 +368,6 @@ def render_temperature_hourly_plot(hourly_temp_data):
     * The heatmap shows how energy consumption varies by hour and temperature bin
     * The line chart displays hourly consumption patterns for different temperature ranges
     * The 3D view combines hour, temperature, and consumption in a spatial visualization
-    * The calendar view presents consumption patterns in a 24-hour clock format
 
     **Key observations:**
     * **Peak usage hours**: Energy consumption peaks between 17:00-19:00 (5-7 PM) across all temperature ranges
