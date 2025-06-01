@@ -1,7 +1,6 @@
 import streamlit as st
-from app.config import setup_page_custom_css
 from app.sidebar import render_sidebar
-from app.tabs import render_eda_tab, render_not_found_tab
+from app.tabs import render_household_tab, render_weather_tab, render_time_based_tab
 from scripts import handle_dataset_availability
 
 
@@ -13,15 +12,13 @@ def setup_app():
         layout="wide",
     )
 
-    setup_page_custom_css()
-
     st.markdown(
         "<h1>⚡ Smart Meters Energy Consumption Analysis</h1>",
         unsafe_allow_html=True,
     )
     st.markdown("""
         This app analyzes time-based patterns in energy consumption data from Smart Meters in London.
-        Upload your data and explore hourly, daily, weekly, and seasonal trends.
+        Use the sidebar to select filters and explore the data interactively.
     """)
 
 
@@ -42,27 +39,21 @@ def initialize_session_state():
 
 def render_app_content():
     """Render the main application content"""
-    # Get user input from sidebar
     render_sidebar()
 
-    # Create tabs for different analyses
-    # tab1, tab2, tab3, tab4 = st.tabs(
-    #     [
-    #         "📊 Exploratory Data Analysis",
-    #         "🧹 Data Cleaning & Feature Engineering",
-    #         "💡 Interesting Findings",
-    #         "📈 Visualizations",
-    #     ]
-    # )
+    # st.header("📊 Exploratory Data Analysis")
+    time_based_tab, household_tab, weather_tab = st.tabs(
+        ["📈 Time-based trends", "📊 Household behavior", "📉 Weather impact"]
+    )
 
-    # with tab1:
-    render_eda_tab()
-    # with tab2:
-    #     render_not_found_tab()
-    # with tab3:
-    #     render_not_found_tab()
-    # with tab4:
-    #     render_not_found_tab()
+    with time_based_tab:
+        render_time_based_tab()
+
+    with household_tab:
+        render_household_tab()
+
+    with weather_tab:
+        render_weather_tab()
 
 
 def main():
