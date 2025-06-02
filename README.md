@@ -5,13 +5,14 @@
 ![Polars](https://img.shields.io/badge/Polars-1.30.0-yellow.svg)
 ![Plotly](https://img.shields.io/badge/Plotly-6.1.2-purple.svg)
 ![Matplotlib](https://img.shields.io/badge/Matplotlib-3.10.3-green.svg)
+![Seaborn](https://img.shields.io/badge/Seaborn-0.13.2-orange.svg)
 ![Status](https://img.shields.io/badge/Status-Active-success.svg)
 
 ## 👨‍💻 Authors: Shevchenko Denys & Karabanov Yehor
 
 ## 🔍 Overview
 
-This project delivers an interactive analytics dashboard for the **"Smart Meters in London"** dataset from Kaggle, uncovering powerful insights about energy consumption patterns across London households. Using Python's data science stack (Pandas, Matplotlib, Seaborn) and Streamlit, the analysis addresses:
+This project delivers an interactive analytics dashboard for the **"Smart Meters in London"** dataset from Kaggle, uncovering powerful insights about energy consumption patterns across London households. Using Polars for high-performance data manipulation and Streamlit for interactive visualization, the analysis addresses:
 
 - ⏱️ **Time-based consumption trends** (hourly, daily, weekly, seasonal)
 - 👪 **Household consumption patterns** across different demographics
@@ -51,13 +52,13 @@ git clone https://github.com/LilConsul/PyEEPro.git
 cd PyEEPro
 ```
 
-2. [Install uv](https://docs.astral.sh/uv/getting-started/installation/#installation-methods) package manager and sync the environment:
+2. [Install uv](https://docs.astral.sh/uv/getting-started/installation/#installation-methods) package manager and create/sync the environment in the project directory:
 
 ```bash
 uv sync
 ```
 
-3. [Download](https://www.kaggle.com/datasets/jeanmidev/smart-meters-in-london) the dataset from Kaggle, and place it in the `./data/` directory. On app start it will automatically be extracted.
+3. [Download](https://www.kaggle.com/datasets/jeanmidev/smart-meters-in-london) the dataset from Kaggle, and place the zip file in the `./data/` directory as `smart-meters-in-london.zip`. The application will automatically extract it on startup.
 
 4. Run the streamlit app:
 
@@ -72,43 +73,54 @@ uv run streamlit run ./src/main.py
 ```
 PyEEPro/
 ├── data/                          # Data storage
-│   ├── cache/                     # Processed analysis results
-│   └── smart-meters-in-london/    # Raw dataset files
+│   ├── cache/                     # Processed analysis results cached for performance
+│   └── smart-meters-in-london/    # Raw dataset files (auto-extracted from .zip)
 ├── docs/                          # Project documentation and requirements
 ├── src/                           # Source code
-│   ├── app/                       # Streamlit application
-│   │   ├── tabs/                  # Dashboard tab components
-│   │   └── utils/                 # UI utility functions
-│   ├── data/                      # Data processing modules
-│   ├── scripts/                   # Data management scripts
+│   ├── app/                       # Streamlit application components
+│   │   ├── tabs/                  # Dashboard tab components for different analyses
+│   │   └── utils/                 # UI utility functions and visualization helpers
+│   ├── data/                      # Data processing and management modules
+│   ├── scripts/                   # Dataset handling scripts (validation, extraction)
 │   ├── main.py                    # Application entry point
 │   └── settings.py                # Application settings
 ├── pyproject.toml                 # Project dependencies
 ├── uv.lock                        # Lock file for package versions
+├── LICENSE                        # MIT License file
 └── README.md                      # Project documentation
 ```
 
-## 📊 Features
+## 📊 Features and Dashboard Tabs
 
-- **Interactive Time-based Analysis**: Explore energy consumption patterns across different time granularities
-- **Household Comparison**: Compare energy usage across different household types and demographics
-- **Weather Correlation**: Analyze the impact of temperature and weather conditions on energy consumption
-- **Data Caching**: Optimized performance through intelligent data caching
-- **Responsive UI**: User-friendly interface designed for both novice and expert users
+The application is organized into three main interactive tabs:
 
-## 📊 Key Insights
+### 📈 Time-based Trends
+- Analyze energy consumption patterns across different time periods:
+  - Hourly consumption profiles
+  - Daily energy usage variations 
+  - Weekly consumption patterns
+  - Seasonal changes in energy demand
+  - Weekday vs weekend usage comparisons
 
-Our analysis of the Smart Meters in London dataset has revealed several important patterns:
+### 📊 Household Behavior
+- Explore how different household types consume electricity:
+  - Comparison across demographic segments
+  - Analysis by ACORN economic category
+  - Household size and composition impact
 
-- **Peak Usage Times**: Energy consumption consistently peaks between 5-8pm across all household types, with a secondary peak in the morning hours.
+### 📉 Weather Impact
+- Understand how weather conditions affect energy usage:
+  - Temperature correlation with consumption
+  - Seasonal weather patterns and energy demand
+  - Hourly temperature and usage relationships
 
-- **Seasonal Variations**: Winter months show up to 28% higher energy usage compared to summer, with December being the highest consumption month.
+## 🔧 Performance Optimization
 
-- **Weather Correlation**: For every 5°C drop in temperature, energy consumption increases approximately 12%, with the strongest correlation during evening hours.
+The application uses several strategies to maintain performance with large datasets:
 
-- **Household Types**: ACORN category "Affluent Achievers" shows 34% higher average consumption than "Urban Adversity" households, reflecting socioeconomic impacts on energy usage.
-
-- **Weekend vs. Weekday**: Weekend consumption profiles show later morning peaks and more sustained daytime usage compared to weekdays.
+- **Data Caching**: Processed analysis results are cached to minimize redundant calculations
+- **Polars Dataframes**: Lightning-fast data processing through Rust-powered Polars
+- **Selective Data Loading**: Only the necessary data is loaded based on user selections
 
 ## 📝 License
 
