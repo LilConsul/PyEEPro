@@ -78,6 +78,8 @@ class AcornData:
                 raise FileNotFoundError(
                     f"File {file} does not exist in {settings.HHBLOCKS_DIR}"
                 )
+            if settings.DEBUG:
+                print(f"Processing file: {file_path}")
 
             df = pl.read_csv(file_path)
             df = df.with_columns(pl.col("day").str.to_date())
