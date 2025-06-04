@@ -139,7 +139,6 @@ class AcornData:
                 }
             )
 
-
 if __name__ == "__main__":
     acorn_data = AcornData(acorn_group="Comfortable", selected_years=(2011, 2012))
     data = acorn_data.get_data()
