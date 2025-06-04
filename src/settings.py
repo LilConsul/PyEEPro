@@ -12,6 +12,7 @@ class Settings:
     WEATHER_DAILY_FILE = DATA_DIR / "weather_daily_darksky.csv"
     WEATHER_HOURLY_FILE = DATA_DIR / "weather_hourly_darksky.csv"
     CACHE_DIR = ALL_DATA_DIR / "cache"
+    MODEL_DIR = CACHE_DIR / "models"
     DEBUG = True
 
 

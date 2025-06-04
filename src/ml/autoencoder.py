@@ -13,6 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch.amp as amp
 import pickle
+from settings import settings
 
 torch.backends.cudnn.benchmark = True
 
@@ -154,7 +155,7 @@ def preprocess_data(data: np.ndarray) -> np.ndarray:
         Processed 2D array with consistent dimensions
     """
     # Create a unique key for caching
-    cache_dir = "cache"
+    cache_dir = settings.CACHE_DIR / "autoencoder_preprocessing"
     os.makedirs(cache_dir, exist_ok=True)
     
     # Try to create a cache key from the data
@@ -222,7 +223,7 @@ class AutoencoderTrainer:
         hidden_dim: int = 8,
         learning_rate: float = 0.001,
         device: Optional[torch.device] = None,
-        model_dir: str = "models/autoencoders",
+        model_dir: str = settings.MODEL_DIR,
         use_amp: bool = True,
         auto_resource_adjustment: bool = True
     ):
