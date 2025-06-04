@@ -338,7 +338,6 @@ def render_temperature_hourly_plot(hourly_temp_data):
     * **Morning peak patterns**: A secondary consumption peak appears between 7:00-9:00 AM, with cold temperatures (<5°C) showing consumption of 0.45-0.50 kWh versus 0.33-0.35 kWh in moderate temperatures
     * **Overnight efficiency**: Between 2:00-4:00 AM, energy consumption reaches its lowest point (0.20-0.30 kWh) and shows minimal temperature sensitivity
     * **Temperature threshold effect**: Below 5°C, each degree drop increases consumption by approximately 0.02-0.03 kWh per hour, with the effect amplified during peak hours
-    * **Humidity correlation**: Cold temperature bins show significantly higher humidity levels (0.85-0.90) compared to warm bins (0.43-0.60 above 25°C), affecting perceived comfort and energy needs
     """)
 
     # Temperature impact summary stats
@@ -451,7 +450,7 @@ def render_weather_tab():
         * The month comparison reveals seasonal patterns across different temperature bins
 
         **Key observations:**
-        * **U-shaped consumption curve**: Energy usage is highest at temperature extremes (below 0°C and above 25°C) and lowest in the 15-20°C range, creating a distinctive U-shaped pattern
+        * **U-shaped consumption curve**: Energy usage is highest at temperature extremes (below 0°C) and lowest in the 15-20°C range, creating a distinctive U-shaped pattern
         * **Cold temperature sensitivity**: Below 0°C, energy consumption increases dramatically to 0.46-0.60 kWh (mean), nearly double the consumption in the optimal 15-20°C range (0.25-0.30 kWh)
         * **Seasonal transitions**: The months of November and March show particularly volatile consumption patterns as households transition between heating and non-heating periods
         * **Monthly variation**: Winter months (December-February) consistently show 20-30% higher energy consumption than summer months (June-August) across all temperature bins
