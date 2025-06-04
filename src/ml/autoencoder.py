@@ -72,14 +72,15 @@ def train_autoencoder(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
+    # Keep data on CPU initially - don't move to device yet
     data_tensor = torch.tensor(processed_data, dtype=torch.float32)
-
     dataset = TensorDataset(data_tensor)
+
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=4,  # Parallelize data loading
+        num_workers=4,
         pin_memory=True if torch.cuda.is_available() else False,
     )
 
@@ -91,9 +92,11 @@ def train_autoencoder(
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # Training loop
+    torch.cuda.synchronize()
     start_time = time.time()
     for epoch in range(epochs):
         for batch in dataloader:
+            # Move to device here after DataLoader has processed the batch
             inputs = batch[0].to(device)
             optimizer.zero_grad()
             outputs = model(inputs)
@@ -104,6 +107,7 @@ def train_autoencoder(
         if (epoch + 1) % 10 == 0:
             print(f"Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}")
 
+    torch.cuda.synchronize()
     end_time = time.time()
     print(f"Training completed in {end_time - start_time:.2f} seconds")
 
@@ -123,7 +127,7 @@ if __name__ == "__main__":
         encoding_dim=2,
         hidden_dim=8,
         epochs=10,
-        batch_size=32,
+        batch_size=256,
     )
 
     # Get reconstructed data
