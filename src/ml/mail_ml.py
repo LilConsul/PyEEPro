@@ -62,8 +62,9 @@ class AutoencoderPipeline:
 
         # Will be set when data is loaded
         self.input_dim = None
-        self.original_data = None
         self.processed_data = None
+        self.processed_conditions = None
+        self.condition_dim = None
 
         # Initialize components
         self.data_processor = DataProcessor()
@@ -74,24 +75,29 @@ class AutoencoderPipeline:
         acorn_data = AcornData(
             acorn_group=self.acorn_group, selected_years=self.selected_years
         ).get_data()
-        self.original_data = acorn_data.select("hh_consumption").to_numpy()
-        # self.metadata = acorn_data.select(
-        #     ["day_of_week", "is_weekend", "avg_temperature", "avg_humidity", "season"]
-        # )
+        original_data = acorn_data.select("hh_consumption").to_numpy()
+        conditions = acorn_data.select(
+            ["day_of_week", "is_weekend", "avg_temperature", "avg_humidity", "season"]
+        )
 
         logging.info(f"Data loading took {time.time() - start_time:.2f} seconds")
 
         # Process data
-        self.processed_data = self.data_processor.preprocess_data(self.original_data)
+        self.processed_data = self.data_processor.preprocess_data(original_data)
+        self.processed_conditions = self.data_processor.preprocess_conditions(
+            conditions
+        )
         self.input_dim = (
             self.processed_data.shape[1]
             if self.processed_data.ndim > 1
             else self.processed_data.shape[0]
         )
+        self.condition_dim = self.processed_conditions.shape[1]
 
         # Initialize the trainer with the correct input dimension
         self.trainer = AutoencoderTrainer(
             input_dim=self.input_dim,
+            condition_dim=self.condition_dim,
             encoding_dim=self.encoding_dim,
             hidden_dim=self.hidden_dim,
             learning_rate=self.learning_rate,
@@ -117,7 +123,8 @@ class AutoencoderPipeline:
         if not model_loaded:
             logging.info("Training new model...")
             self.trainer.train(
-                self.original_data,
+                data=self.processed_data,
+                conditions=self.processed_conditions,
                 epochs=epochs,
                 batch_size=None,
                 num_workers=None,
@@ -141,7 +148,9 @@ class AutoencoderPipeline:
 
         start_time = time.time()
         reconstructed_data, mse = self.trainer.evaluate(
-            self.original_data, batch_size=None
+            data=self.processed_data,
+            conditions=self.processed_conditions,
+            batch_size=None,
         )
         logging.info(f"Evaluation took {time.time() - start_time:.2f} seconds")
 
@@ -155,7 +164,9 @@ class AutoencoderPipeline:
             )
 
         self.trainer.visualize_reconstruction(
-            self.processed_data, reconstructed_data, num_examples=num_examples
+            original_data=self.processed_data,
+            reconstructed_data=reconstructed_data,
+            num_examples=num_examples,
         )
 
     def run_pipeline(
@@ -193,4 +204,3 @@ if __name__ == "__main__":
     )
 
     pipeline.run_pipeline(force_retrain=False, epochs=20, num_examples=5)
-

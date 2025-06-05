@@ -64,6 +64,7 @@ class SystemResourceManager:
     @staticmethod
     def calculate_optimal_batch_size(
         input_dim: int,
+        condition_dim: int,
         model_params: int,
         available_memory: int,
         precision: str = "mixed",
@@ -75,6 +76,7 @@ class SystemResourceManager:
             input_dim: Dimension of input data
             model_params: Number of model parameters
             available_memory: Available memory in bytes
+            condition_dim: Dimension of conditional input (default: 0)
             precision: Precision mode ('full' or 'mixed')
 
         Returns:
@@ -84,7 +86,8 @@ class SystemResourceManager:
         bytes_per_float = 2 if precision == "mixed" else 4
 
         # Memory for input, output, gradients, optimizer states, etc.
-        bytes_per_sample = input_dim * 4 * bytes_per_float
+        # Now including condition dimension
+        bytes_per_sample = (input_dim + condition_dim) * 4 * bytes_per_float
 
         # Model memory (parameters, gradients, optimizer states)
         model_memory = model_params * 4 * bytes_per_float * 3

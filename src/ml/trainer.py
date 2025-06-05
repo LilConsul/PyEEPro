@@ -20,6 +20,7 @@ class AutoencoderTrainer:
     def __init__(
         self,
         input_dim: int = 48,
+        condition_dim: int = 15,
         encoding_dim: int = 2,
         hidden_dim: int = 8,
         learning_rate: float = 0.001,
@@ -42,6 +43,7 @@ class AutoencoderTrainer:
             auto_resource_adjustment: Whether to automatically adjust settings based on system resources
         """
         self.input_dim = input_dim
+        self.condition_dim = condition_dim
         self.encoding_dim = encoding_dim
         self.hidden_dim = hidden_dim
         self.learning_rate = learning_rate
@@ -87,7 +89,10 @@ class AutoencoderTrainer:
 
         # Initialize model
         self.model = AutoencoderModel(
-            input_dim=input_dim, encoding_dim=encoding_dim, hidden_dim=hidden_dim
+            input_dim=input_dim,
+            condition_dim=condition_dim,
+            encoding_dim=encoding_dim,
+            hidden_dim=hidden_dim,
         ).to(self.device)
 
         # Calculate model parameters
@@ -115,6 +120,7 @@ class AutoencoderTrainer:
     def train(
         self,
         data: np.ndarray,
+        conditions: np.ndarray,
         epochs: int = 100,
         batch_size: Optional[int] = None,
         num_workers: Optional[int] = None,
@@ -140,7 +146,6 @@ class AutoencoderTrainer:
             Trained model and list of losses
         """
         start_time = time.time()
-        processed_data = self.data_processor.preprocess_data(data)
         logging.info(f"Data preprocessing took {time.time() - start_time:.2f} seconds")
 
         # Set up adaptive resource parameters
@@ -160,7 +165,11 @@ class AutoencoderTrainer:
                     )
                     precision = "mixed" if self.use_amp else "full"
                     batch_size = self.resource_manager.calculate_optimal_batch_size(
-                        self.input_dim, self.model_params, available_memory, precision
+                        self.input_dim,
+                        self.condition_dim,
+                        self.model_params,
+                        available_memory,
+                        precision,
                     )
                 else:
                     # For CPU, use smaller batch sizes based on available RAM
@@ -170,7 +179,7 @@ class AutoencoderTrainer:
                 logging.info(f"Auto-configured batch size: {batch_size}")
 
                 # Adjust gradient accumulation for effective larger batch sizes
-                if batch_size < 128 and processed_data.shape[0] > 10000:
+                if batch_size < 128 and data.shape[0] > 10000:
                     gradient_accumulation_steps = max(1, 128 // batch_size)
                     logging.info(
                         f"Using gradient accumulation: {gradient_accumulation_steps} steps"
@@ -183,7 +192,7 @@ class AutoencoderTrainer:
 
         # Create data loaders
         train_loader, val_loader = self.data_processor.create_data_loaders(
-            processed_data, batch_size, num_workers, validation_split
+            data, conditions, batch_size, num_workers, validation_split
         )
 
         # Training loop
@@ -209,11 +218,12 @@ class AutoencoderTrainer:
             for i, batch in enumerate(train_loader):
                 # Move to device
                 inputs = batch[0].to(self.device)
+                conditions = batch[1].to(self.device)
 
                 # Use mixed precision if enabled
                 if self.use_amp:
                     with amp.autocast("cuda" if torch.cuda.is_available() else "cpu"):
-                        outputs = self.model(inputs)
+                        outputs = self.model(inputs, conditions)
                         loss = self.criterion(outputs, inputs)
                         # Scale loss by accumulation steps for consistent gradients
                         loss = loss / gradient_accumulation_steps
@@ -230,7 +240,7 @@ class AutoencoderTrainer:
                         self.optimizer.zero_grad()
                 else:
                     # Regular full-precision training
-                    outputs = self.model(inputs)
+                    outputs = self.model(inputs, conditions)
                     loss = self.criterion(outputs, inputs)
                     # Scale loss by accumulation steps
                     loss = loss / gradient_accumulation_steps
@@ -259,15 +269,16 @@ class AutoencoderTrainer:
             with torch.no_grad():
                 for batch in val_loader:
                     inputs = batch[0].to(self.device)
+                    conditions = batch[1].to(self.device)
 
                     if self.use_amp:
                         with amp.autocast(
                             "cuda" if torch.cuda.is_available() else "cpu"
                         ):
-                            outputs = self.model(inputs)
+                            outputs = self.model(inputs, conditions)
                             loss = self.criterion(outputs, inputs)
                     else:
-                        outputs = self.model(inputs)
+                        outputs = self.model(inputs, conditions)
                         loss = self.criterion(outputs, inputs)
 
                     val_epoch_loss += loss.item()
@@ -313,9 +324,8 @@ class AutoencoderTrainer:
 
         return self.model, losses
 
-    def plot_training_history(
-        self, losses: List[float], val_losses: List[float]
-    ) -> None:
+    @staticmethod
+    def plot_training_history(losses: List[float], val_losses: List[float]) -> None:
         """
         Plot training and validation loss history.
 
@@ -334,7 +344,7 @@ class AutoencoderTrainer:
         plt.show()
 
     def evaluate(
-        self, data: np.ndarray, batch_size: Optional[int] = None
+        self, data: np.ndarray, conditions: np.ndarray, batch_size: Optional[int] = None
     ) -> Tuple[np.ndarray, float]:
         """
         Evaluate the model on input data.
@@ -355,7 +365,11 @@ class AutoencoderTrainer:
                 )
                 precision = "mixed" if self.use_amp else "full"
                 batch_size = self.resource_manager.calculate_optimal_batch_size(
-                    self.input_dim, self.model_params, available_memory, precision
+                    self.input_dim,
+                    self.condition_dim,
+                    self.model_params,
+                    available_memory,
+                    precision,
                 )
                 # Use larger batches for inference
                 batch_size = batch_size * 2
@@ -377,8 +391,8 @@ class AutoencoderTrainer:
             num_workers = 4
 
         # Create DataLoader for test data
-        dataloader, processed_data = self.data_processor.create_test_loader(
-            data, batch_size, num_workers
+        dataloader = self.data_processor.create_test_loader(
+            data, conditions, batch_size, num_workers
         )
 
         self.model.eval()
@@ -389,25 +403,27 @@ class AutoencoderTrainer:
                 with amp.autocast("cuda" if torch.cuda.is_available() else "cpu"):
                     for batch in dataloader:
                         inputs = batch[0].to(self.device)
-                        outputs = self.model(inputs)
+                        conditions = batch[1].to(self.device)
+                        outputs = self.model(inputs, conditions)
                         reconstructed_chunks.append(outputs.cpu().numpy())
             else:
                 for batch in dataloader:
                     inputs = batch[0].to(self.device)
-                    outputs = self.model(inputs)
+                    conditions = batch[1].to(self.device)
+                    outputs = self.model(inputs, conditions)
                     reconstructed_chunks.append(outputs.cpu().numpy())
 
         # Concatenate all batches
         reconstructed_data = np.vstack(reconstructed_chunks)
 
         # Calculate reconstruction error
-        mse = np.mean(np.square(processed_data - reconstructed_data))
+        mse = np.mean(np.square(data - reconstructed_data))
         logging.info(f"Reconstruction Error (MSE): {mse:.6f}")
 
         return reconstructed_data, mse
 
+    @staticmethod
     def visualize_reconstruction(
-        self,
         original_data: np.ndarray,
         reconstructed_data: np.ndarray,
         num_examples: int = 5,
@@ -461,6 +477,7 @@ class AutoencoderTrainer:
         state = {
             "model_state_dict": self.model.state_dict(),
             "input_dim": self.input_dim,
+            "condition_dim": self.condition_dim,
             "encoding_dim": self.encoding_dim,
             "hidden_dim": self.hidden_dim,
             "metadata": metadata,
@@ -503,6 +520,7 @@ class AutoencoderTrainer:
             # Verify model configuration matches
             if (
                 state["input_dim"] == self.input_dim
+                and state["condition_dim"] == self.condition_dim
                 and state["encoding_dim"] == self.encoding_dim
                 and state["hidden_dim"] == self.hidden_dim
             ):
