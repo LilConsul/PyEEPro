@@ -1,7 +1,3 @@
-"""
-Class-based decomposition of autoencoder ML system for energy consumption data.
-This module provides object-oriented interfaces to the autoencoder system.
-"""
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,8 +5,6 @@ from torch.utils.data import DataLoader, TensorDataset
 import time
 import logging
 import os
-import platform
-import psutil
 import numpy as np
 import matplotlib.pyplot as plt
 import torch.amp as amp
@@ -18,110 +12,15 @@ import pickle
 from typing import Tuple, Optional, List, Dict, Any
 from data.data_acorn import AcornData
 from settings import settings
-from abc import ABC, abstractmethod
+from system_resource_manager import SystemResourceManager
 
 
 # Configure backend for performance
 torch.backends.cudnn.benchmark = True
 
 
-# =============== System Resource Management ===============
-
-class SystemResourceManager:
-    """Class for managing and optimizing system resources."""
-
-    @staticmethod
-    def get_system_resources() -> Dict[str, Any]:
-        """
-        Get information about available system resources.
-
-        Returns:
-            Dictionary with system resource information
-        """
-        resources = {
-            'cpu_count': os.cpu_count(),
-            'cpu_count_physical': psutil.cpu_count(logical=False),
-            'cpu_percent': psutil.cpu_percent(),
-            'memory_total': psutil.virtual_memory().total,
-            'memory_available': psutil.virtual_memory().available,
-            'platform': platform.system(),
-            'cuda_available': torch.cuda.is_available(),
-        }
-
-        if resources['cuda_available']:
-            resources.update({
-                'cuda_device_count': torch.cuda.device_count(),
-                'cuda_device_name': torch.cuda.get_device_name(0),
-                'cuda_memory_total': torch.cuda.get_device_properties(0).total_memory,
-                'cuda_memory_reserved': torch.cuda.memory_reserved(0),
-                'cuda_memory_allocated': torch.cuda.memory_allocated(0),
-            })
-
-        return resources
-
-    @staticmethod
-    def calculate_optimal_workers(total_cores: int) -> int:
-        """
-        Calculate the optimal number of worker processes for data loading.
-
-        Args:
-            total_cores: Total number of CPU cores available
-
-        Returns:
-            Optimal number of worker processes
-        """
-        if total_cores <= 2:
-            return 0  # Disable multiprocessing for systems with few cores
-        elif total_cores <= 4:
-            return max(1, total_cores - 1)  # Reserve 1 core
-        else:
-            # For systems with many cores, use 75% of cores, rounding down
-            return max(1, int(total_cores * 0.75))
-
-    @staticmethod
-    def calculate_optimal_batch_size(
-        input_dim: int,
-        model_params: int,
-        available_memory: int,
-        precision: str = 'mixed'
-    ) -> int:
-        """
-        Calculate optimal batch size based on available memory.
-
-        Args:
-            input_dim: Dimension of input data
-            model_params: Number of model parameters
-            available_memory: Available memory in bytes
-            precision: Precision mode ('full' or 'mixed')
-
-        Returns:
-            Optimal batch size
-        """
-        # Estimate bytes per sample based on precision
-        bytes_per_float = 2 if precision == 'mixed' else 4
-
-        # Memory for input, output, gradients, optimizer states, etc.
-        bytes_per_sample = input_dim * 4 * bytes_per_float
-
-        # Model memory (parameters, gradients, optimizer states)
-        model_memory = model_params * 4 * bytes_per_float * 3
-
-        # Use 70% of available memory, accounting for model memory and other overhead
-        usable_memory = (available_memory * 0.7) - model_memory
-
-        # Calculate batch size
-        batch_size = max(1, int(usable_memory / bytes_per_sample))
-
-        # Cap at reasonable values and ensure it's a power of 2 for GPU efficiency
-        batch_size = min(batch_size, 8192)
-
-        # Round down to the nearest power of 2 for better GPU utilization
-        batch_size = 2 ** int(np.log2(batch_size))
-
-        return batch_size
-
-
 # =============== Data Processing ===============
+
 
 class DataProcessor:
     """Class for handling data preprocessing and preparation."""
@@ -148,7 +47,7 @@ class DataProcessor:
         """
         # Try to create a cache key from the data
         try:
-            if hasattr(data, 'shape') and hasattr(data, 'dtype'):
+            if hasattr(data, "shape") and hasattr(data, "dtype"):
                 # Simple caching based on shape and basic properties
                 cache_key = f"preprocessed_data_{data.shape}_{data.dtype}.pkl"
                 cache_path = os.path.join(self.cache_dir, cache_key)
@@ -156,7 +55,7 @@ class DataProcessor:
                 # Check if cached result exists
                 if os.path.exists(cache_path):
                     logging.info(f"Loading preprocessed data from cache: {cache_path}")
-                    with open(cache_path, 'rb') as f:
+                    with open(cache_path, "rb") as f:
                         return pickle.load(f)
         except Exception as e:
             logging.warning(f"Cache key generation failed: {e}")
@@ -191,8 +90,8 @@ class DataProcessor:
 
         # Save to cache
         try:
-            if 'cache_path' in locals():
-                with open(cache_path, 'wb') as f:
+            if "cache_path" in locals():
+                with open(cache_path, "wb") as f:
                     pickle.dump(result, f)
                 logging.info(f"Saved preprocessed data to cache: {cache_path}")
         except Exception as e:
@@ -205,7 +104,7 @@ class DataProcessor:
         processed_data: np.ndarray,
         batch_size: int,
         num_workers: int,
-        validation_split: float = 0.1
+        validation_split: float = 0.1,
     ) -> Tuple[DataLoader, DataLoader]:
         """
         Create train and validation data loaders from processed data.
@@ -251,10 +150,7 @@ class DataProcessor:
         return train_loader, val_loader
 
     def create_test_loader(
-        self,
-        data: np.ndarray,
-        batch_size: int,
-        num_workers: int
+        self, data: np.ndarray, batch_size: int, num_workers: int
     ) -> DataLoader:
         """
         Create a DataLoader for test/evaluation data.
@@ -284,6 +180,7 @@ class DataProcessor:
 
 
 # =============== Model Classes ===============
+
 
 class AutoencoderModel(nn.Module):
     """Autoencoder neural network for dimensionality reduction and reconstruction."""
@@ -336,7 +233,7 @@ class AutoencoderTrainer:
         device: Optional[torch.device] = None,
         model_dir: str = settings.MODEL_DIR,
         use_amp: bool = True,
-        auto_resource_adjustment: bool = True
+        auto_resource_adjustment: bool = True,
     ):
         """
         Initialize the trainer with model configuration.
@@ -366,32 +263,38 @@ class AutoencoderTrainer:
         self.system_resources = self.resource_manager.get_system_resources()
 
         # Set up device
-        self.device = device if device is not None else torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = (
+            device
+            if device is not None
+            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
         )
         logging.info(f"Using device: {self.device}")
 
         # Log system resources
-        logging.info(f"System resources: CPU cores: {self.system_resources['cpu_count']}, "
-                   f"Physical cores: {self.system_resources['cpu_count_physical']}")
+        logging.info(
+            f"System resources: CPU cores: {self.system_resources['cpu_count']}, "
+            f"Physical cores: {self.system_resources['cpu_count_physical']}"
+        )
 
         if torch.cuda.is_available():
-            gpu_mem_gb = self.system_resources['cuda_memory_total'] / (1024**3)
-            logging.info(f"GPU: {self.system_resources['cuda_device_name']}, "
-                       f"Memory: {gpu_mem_gb:.2f} GB")
+            gpu_mem_gb = self.system_resources["cuda_memory_total"] / (1024**3)
+            logging.info(
+                f"GPU: {self.system_resources['cuda_device_name']}, "
+                f"Memory: {gpu_mem_gb:.2f} GB"
+            )
 
             # Adjust model complexity based on GPU memory if auto-adjustment is enabled
             if self.auto_resource_adjustment:
                 # For very low memory GPUs, reduce hidden dimension
                 if gpu_mem_gb < 2:
                     self.hidden_dim = min(self.hidden_dim, 4)
-                    logging.info(f"Limited GPU memory detected. Reduced hidden_dim to {self.hidden_dim}")
+                    logging.info(
+                        f"Limited GPU memory detected. Reduced hidden_dim to {self.hidden_dim}"
+                    )
 
         # Initialize model
         self.model = AutoencoderModel(
-            input_dim=input_dim,
-            encoding_dim=encoding_dim,
-            hidden_dim=hidden_dim
+            input_dim=input_dim, encoding_dim=encoding_dim, hidden_dim=hidden_dim
         ).to(self.device)
 
         # Calculate model parameters
@@ -403,14 +306,18 @@ class AutoencoderTrainer:
 
         # Initialize learning rate scheduler
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode='min', factor=0.5, patience=5
+            self.optimizer, mode="min", factor=0.5, patience=5
         )
 
         # Determine if we should use AMP
         self.use_amp = use_amp and torch.cuda.is_available()
 
         # Initialize scaler for mixed precision training
-        self.scaler = amp.GradScaler('cuda', enabled=self.use_amp) if torch.cuda.is_available() else amp.GradScaler(enabled=False)
+        self.scaler = (
+            amp.GradScaler("cuda", enabled=self.use_amp)
+            if torch.cuda.is_available()
+            else amp.GradScaler(enabled=False)
+        )
 
     def train(
         self,
@@ -421,7 +328,7 @@ class AutoencoderTrainer:
         log_interval: int = 10,
         validation_split: float = 0.1,
         early_stopping_patience: int = 10,
-        gradient_accumulation_steps: int = 1
+        gradient_accumulation_steps: int = 1,
     ) -> Tuple[nn.Module, List[float]]:
         """
         Train the autoencoder model.
@@ -447,25 +354,24 @@ class AutoencoderTrainer:
         if self.auto_resource_adjustment:
             if num_workers is None:
                 num_workers = self.resource_manager.calculate_optimal_workers(
-                    self.system_resources['cpu_count']
+                    self.system_resources["cpu_count"]
                 )
                 logging.info(f"Auto-configured worker processes: {num_workers}")
 
             # Determine optimal batch size
             if batch_size is None:
                 if torch.cuda.is_available():
-                    available_memory = (self.system_resources['cuda_memory_total'] -
-                                       self.system_resources['cuda_memory_reserved'])
-                    precision = 'mixed' if self.use_amp else 'full'
+                    available_memory = (
+                        self.system_resources["cuda_memory_total"]
+                        - self.system_resources["cuda_memory_reserved"]
+                    )
+                    precision = "mixed" if self.use_amp else "full"
                     batch_size = self.resource_manager.calculate_optimal_batch_size(
-                        self.input_dim,
-                        self.model_params,
-                        available_memory,
-                        precision
+                        self.input_dim, self.model_params, available_memory, precision
                     )
                 else:
                     # For CPU, use smaller batch sizes based on available RAM
-                    memory_gb = self.system_resources['memory_available'] / (1024**3)
+                    memory_gb = self.system_resources["memory_available"] / (1024**3)
                     batch_size = min(64, max(8, int(memory_gb * 4)))
 
                 logging.info(f"Auto-configured batch size: {batch_size}")
@@ -473,7 +379,9 @@ class AutoencoderTrainer:
                 # Adjust gradient accumulation for effective larger batch sizes
                 if batch_size < 128 and processed_data.shape[0] > 10000:
                     gradient_accumulation_steps = max(1, 128 // batch_size)
-                    logging.info(f"Using gradient accumulation: {gradient_accumulation_steps} steps")
+                    logging.info(
+                        f"Using gradient accumulation: {gradient_accumulation_steps} steps"
+                    )
         else:
             if batch_size is None:
                 batch_size = 256
@@ -488,7 +396,7 @@ class AutoencoderTrainer:
         # Training loop
         losses = []
         val_losses = []
-        best_val_loss = float('inf')
+        best_val_loss = float("inf")
         patience_counter = 0
 
         if torch.cuda.is_available():
@@ -511,7 +419,7 @@ class AutoencoderTrainer:
 
                 # Use mixed precision if enabled
                 if self.use_amp:
-                    with amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
+                    with amp.autocast("cuda" if torch.cuda.is_available() else "cpu"):
                         outputs = self.model(inputs)
                         loss = self.criterion(outputs, inputs)
                         # Scale loss by accumulation steps for consistent gradients
@@ -521,7 +429,9 @@ class AutoencoderTrainer:
                     self.scaler.scale(loss).backward()
 
                     # Only update weights after accumulating gradients
-                    if (i + 1) % gradient_accumulation_steps == 0 or (i + 1) == len(train_loader):
+                    if (i + 1) % gradient_accumulation_steps == 0 or (i + 1) == len(
+                        train_loader
+                    ):
                         self.scaler.step(self.optimizer)
                         self.scaler.update()
                         self.optimizer.zero_grad()
@@ -534,7 +444,9 @@ class AutoencoderTrainer:
                     loss.backward()
 
                     # Only update weights after accumulating gradients
-                    if (i + 1) % gradient_accumulation_steps == 0 or (i + 1) == len(train_loader):
+                    if (i + 1) % gradient_accumulation_steps == 0 or (i + 1) == len(
+                        train_loader
+                    ):
                         self.optimizer.step()
                         self.optimizer.zero_grad()
 
@@ -556,7 +468,9 @@ class AutoencoderTrainer:
                     inputs = batch[0].to(self.device)
 
                     if self.use_amp:
-                        with amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
+                        with amp.autocast(
+                            "cuda" if torch.cuda.is_available() else "cpu"
+                        ):
                             outputs = self.model(inputs)
                             loss = self.criterion(outputs, inputs)
                     else:
@@ -569,12 +483,12 @@ class AutoencoderTrainer:
             avg_val_loss = val_epoch_loss / val_batch_count
             val_losses.append(avg_val_loss)
 
-            old_lr = self.optimizer.param_groups[0]['lr']
+            old_lr = self.optimizer.param_groups[0]["lr"]
             self.scheduler.step(avg_val_loss)
-            new_lr = self.optimizer.param_groups[0]['lr']
+            new_lr = self.optimizer.param_groups[0]["lr"]
 
             if old_lr != new_lr:
-                logging.info(f'Learning rate changed from {old_lr:.6f} to {new_lr:.6f}')
+                logging.info(f"Learning rate changed from {old_lr:.6f} to {new_lr:.6f}")
 
             if avg_val_loss < best_val_loss:
                 best_val_loss = avg_val_loss
@@ -606,7 +520,9 @@ class AutoencoderTrainer:
 
         return self.model, losses
 
-    def plot_training_history(self, losses: List[float], val_losses: List[float]) -> None:
+    def plot_training_history(
+        self, losses: List[float], val_losses: List[float]
+    ) -> None:
         """
         Plot training and validation loss history.
 
@@ -615,16 +531,18 @@ class AutoencoderTrainer:
             val_losses: List of validation losses
         """
         plt.figure(figsize=(10, 5))
-        plt.plot(losses, label='Training Loss')
-        plt.plot(val_losses, label='Validation Loss')
-        plt.title('Training and Validation Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
+        plt.plot(losses, label="Training Loss")
+        plt.plot(val_losses, label="Validation Loss")
+        plt.title("Training and Validation Loss")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
         plt.legend()
         plt.grid(True)
         plt.show()
 
-    def evaluate(self, data: np.ndarray, batch_size: Optional[int] = None) -> Tuple[np.ndarray, float]:
+    def evaluate(
+        self, data: np.ndarray, batch_size: Optional[int] = None
+    ) -> Tuple[np.ndarray, float]:
         """
         Evaluate the model on input data.
 
@@ -638,20 +556,19 @@ class AutoencoderTrainer:
         # Auto-determine batch size if needed
         if batch_size is None and self.auto_resource_adjustment:
             if torch.cuda.is_available():
-                available_memory = (self.system_resources['cuda_memory_total'] -
-                                   self.system_resources['cuda_memory_reserved'])
-                precision = 'mixed' if self.use_amp else 'full'
+                available_memory = (
+                    self.system_resources["cuda_memory_total"]
+                    - self.system_resources["cuda_memory_reserved"]
+                )
+                precision = "mixed" if self.use_amp else "full"
                 batch_size = self.resource_manager.calculate_optimal_batch_size(
-                    self.input_dim,
-                    self.model_params,
-                    available_memory,
-                    precision
+                    self.input_dim, self.model_params, available_memory, precision
                 )
                 # Use larger batches for inference
                 batch_size = batch_size * 2
             else:
                 # For CPU, estimate based on available memory
-                memory_gb = self.system_resources['memory_available'] / (1024**3)
+                memory_gb = self.system_resources["memory_available"] / (1024**3)
                 batch_size = min(128, max(16, int(memory_gb * 8)))
         elif batch_size is None:
             batch_size = 512
@@ -661,7 +578,7 @@ class AutoencoderTrainer:
         # Determine optimal workers for evaluation
         if self.auto_resource_adjustment:
             num_workers = self.resource_manager.calculate_optimal_workers(
-                self.system_resources['cpu_count']
+                self.system_resources["cpu_count"]
             )
         else:
             num_workers = 4
@@ -676,7 +593,7 @@ class AutoencoderTrainer:
 
         with torch.no_grad():
             if self.use_amp:
-                with amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
+                with amp.autocast("cuda" if torch.cuda.is_available() else "cpu"):
                     for batch in dataloader:
                         inputs = batch[0].to(self.device)
                         outputs = self.model(inputs)
@@ -700,7 +617,7 @@ class AutoencoderTrainer:
         self,
         original_data: np.ndarray,
         reconstructed_data: np.ndarray,
-        num_examples: int = 5
+        num_examples: int = 5,
     ) -> None:
         """
         Visualize original vs reconstructed data examples.
@@ -738,20 +655,22 @@ class AutoencoderTrainer:
         os.makedirs(self.model_dir, exist_ok=True)
 
         # Create filename from metadata
-        acorn_group = metadata.get('acorn_group', 'unknown')
-        years = metadata.get('selected_years', (0, 0))
+        acorn_group = metadata.get("acorn_group", "unknown")
+        years = metadata.get("selected_years", (0, 0))
         start_year, end_year = years
 
-        filename = f"autoencoder_{acorn_group}_{start_year}_{end_year}_{self.encoding_dim}d.pt"
+        filename = (
+            f"autoencoder_{acorn_group}_{start_year}_{end_year}_{self.encoding_dim}d.pt"
+        )
         filepath = os.path.join(self.model_dir, filename)
 
         # Save model state and configuration
         state = {
-            'model_state_dict': self.model.state_dict(),
-            'input_dim': self.input_dim,
-            'encoding_dim': self.encoding_dim,
-            'hidden_dim': self.hidden_dim,
-            'metadata': metadata
+            "model_state_dict": self.model.state_dict(),
+            "input_dim": self.input_dim,
+            "encoding_dim": self.encoding_dim,
+            "hidden_dim": self.hidden_dim,
+            "metadata": metadata,
         }
 
         torch.save(state, filepath)
@@ -770,11 +689,13 @@ class AutoencoderTrainer:
             True if model was loaded successfully, False otherwise
         """
         # Create filename from metadata
-        acorn_group = metadata.get('acorn_group', 'unknown')
-        years = metadata.get('selected_years', (0, 0))
+        acorn_group = metadata.get("acorn_group", "unknown")
+        years = metadata.get("selected_years", (0, 0))
         start_year, end_year = years
 
-        filename = f"autoencoder_{acorn_group}_{start_year}_{end_year}_{self.encoding_dim}d.pt"
+        filename = (
+            f"autoencoder_{acorn_group}_{start_year}_{end_year}_{self.encoding_dim}d.pt"
+        )
         filepath = os.path.join(self.model_dir, filename)
 
         # Check if file exists
@@ -787,11 +708,12 @@ class AutoencoderTrainer:
             state = torch.load(filepath, map_location=self.device)
 
             # Verify model configuration matches
-            if (state['input_dim'] == self.input_dim and
-                state['encoding_dim'] == self.encoding_dim and
-                state['hidden_dim'] == self.hidden_dim):
-
-                self.model.load_state_dict(state['model_state_dict'])
+            if (
+                state["input_dim"] == self.input_dim
+                and state["encoding_dim"] == self.encoding_dim
+                and state["hidden_dim"] == self.hidden_dim
+            ):
+                self.model.load_state_dict(state["model_state_dict"])
                 logging.info(f"Model loaded from {filepath}")
                 return True
             else:
@@ -808,6 +730,7 @@ class AutoencoderTrainer:
 
 # =============== Pipeline Class ===============
 
+
 class AutoencoderPipeline:
     """End-to-end pipeline for autoencoder workflow."""
 
@@ -819,7 +742,7 @@ class AutoencoderPipeline:
         hidden_dim: int = 8,
         learning_rate: float = 0.001,
         auto_resource_adjustment: bool = True,
-        device: Optional[torch.device] = None
+        device: Optional[torch.device] = None,
     ):
         """
         Initialize the autoencoder pipeline.
@@ -841,16 +764,18 @@ class AutoencoderPipeline:
         self.auto_resource_adjustment = auto_resource_adjustment
 
         # Set device if not provided
-        self.device = device if device is not None else torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = (
+            device
+            if device is not None
+            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
         )
 
         # Metadata for model identification
         self.metadata = {
-            'acorn_group': acorn_group,
-            'selected_years': selected_years,
-            'data_source': 'acorn',
-            'feature': 'hh_consumption'
+            "acorn_group": acorn_group,
+            "selected_years": selected_years,
+            "data_source": "acorn",
+            "feature": "hh_consumption",
         }
 
         # Will be set when data is loaded
@@ -865,15 +790,18 @@ class AutoencoderPipeline:
         """Load and preprocess data from the Acorn dataset."""
         start_time = time.time()
         acorn_data = AcornData(
-            acorn_group=self.acorn_group,
-            selected_years=self.selected_years
+            acorn_group=self.acorn_group, selected_years=self.selected_years
         ).get_data()
         self.original_data = acorn_data.select("hh_consumption").to_numpy()
         logging.info(f"Data loading took {time.time() - start_time:.2f} seconds")
 
         # Process data
         self.processed_data = self.data_processor.preprocess_data(self.original_data)
-        self.input_dim = self.processed_data.shape[1] if self.processed_data.ndim > 1 else self.processed_data.shape[0]
+        self.input_dim = (
+            self.processed_data.shape[1]
+            if self.processed_data.ndim > 1
+            else self.processed_data.shape[0]
+        )
 
         # Initialize the trainer with the correct input dimension
         self.trainer = AutoencoderTrainer(
@@ -883,15 +811,17 @@ class AutoencoderPipeline:
             learning_rate=self.learning_rate,
             use_amp=True,
             auto_resource_adjustment=self.auto_resource_adjustment,
-            device=self.device
+            device=self.device,
         )
 
         return self.processed_data
 
     def train_or_load_model(self, force_retrain: bool = False, epochs: int = 20):
         """Train a new model or load a pre-trained one."""
-        if not hasattr(self, 'trainer'):
-            raise ValueError("Data must be loaded before training or loading a model. Call load_data() first.")
+        if not hasattr(self, "trainer"):
+            raise ValueError(
+                "Data must be loaded before training or loading a model. Call load_data() first."
+            )
 
         if not force_retrain:
             model_loaded = self.trainer.load_model(self.metadata)
@@ -907,7 +837,7 @@ class AutoencoderPipeline:
                 num_workers=None,
                 log_interval=1,
                 validation_split=0.1,
-                early_stopping_patience=5
+                early_stopping_patience=5,
             )
 
             self.trainer.save_model(self.metadata)
@@ -918,13 +848,14 @@ class AutoencoderPipeline:
 
     def evaluate_model(self):
         """Evaluate the model on the loaded data."""
-        if not hasattr(self, 'trainer'):
-            raise ValueError("Model must be trained or loaded before evaluation. Call train_or_load_model() first.")
+        if not hasattr(self, "trainer"):
+            raise ValueError(
+                "Model must be trained or loaded before evaluation. Call train_or_load_model() first."
+            )
 
         start_time = time.time()
         reconstructed_data, mse = self.trainer.evaluate(
-            self.original_data,
-            batch_size=None
+            self.original_data, batch_size=None
         )
         logging.info(f"Evaluation took {time.time() - start_time:.2f} seconds")
 
@@ -932,16 +863,18 @@ class AutoencoderPipeline:
 
     def visualize_results(self, reconstructed_data, num_examples=5):
         """Visualize the reconstruction results."""
-        if not hasattr(self, 'trainer'):
-            raise ValueError("Model must be evaluated before visualization. Call evaluate_model() first.")
+        if not hasattr(self, "trainer"):
+            raise ValueError(
+                "Model must be evaluated before visualization. Call evaluate_model() first."
+            )
 
         self.trainer.visualize_reconstruction(
-            self.processed_data,
-            reconstructed_data,
-            num_examples=num_examples
+            self.processed_data, reconstructed_data, num_examples=num_examples
         )
 
-    def run_pipeline(self, force_retrain: bool = False, epochs: int = 20, num_examples: int = 5):
+    def run_pipeline(
+        self, force_retrain: bool = False, epochs: int = 20, num_examples: int = 5
+    ):
         """Run the full pipeline: load data, train/load model, evaluate, and visualize."""
         # Load and preprocess data
         self.load_data()
