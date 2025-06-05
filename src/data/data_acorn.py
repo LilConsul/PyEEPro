@@ -48,8 +48,10 @@ class AcornData:
     def _process_data(self) -> pl.DataFrame:
         result_frames = []
 
+        # Convert weather data processing to lazy
         weather_daily = (
-            self._weather_data.with_columns(
+            self._weather_data.lazy()
+            .with_columns(
                 pl.col("time")
                 .str.to_datetime(format="%Y-%m-%d %H:%M:%S")
                 .dt.date()
@@ -64,10 +66,10 @@ class AcornData:
             )
         )
 
+        # Convert holidays data processing to lazy
         holidays_df = (
-            self._holidays_data.with_columns(
-                pl.col("Bank holidays").str.to_date().alias("holiday_date")
-            )
+            self._holidays_data.lazy()
+            .with_columns(pl.col("Bank holidays").str.to_date().alias("holiday_date"))
             .select("holiday_date")
             .with_columns(pl.lit(True).alias("is_holiday"))
         )
@@ -81,7 +83,8 @@ class AcornData:
             if settings.DEBUG:
                 print(f"Processing file: {file_path}")
 
-            df = pl.read_csv(file_path)
+            # Use scan_csv instead of read_csv for lazy loading
+            df = pl.scan_csv(file_path)
             df = df.with_columns(pl.col("day").str.to_date())
             df = df.filter(
                 pl.col("day")
@@ -94,9 +97,7 @@ class AcornData:
 
             df = df.join(
                 holidays_df, left_on="day", right_on="holiday_date", how="left"
-            ).with_columns(
-                pl.col("is_holiday").fill_null(False)
-            )
+            ).with_columns(pl.col("is_holiday").fill_null(False))
 
             df = df.with_columns(
                 ((pl.col("day").dt.weekday() >= 5) | pl.col("is_holiday")).alias(
@@ -108,7 +109,7 @@ class AcornData:
 
             df = df.with_columns(((pl.col("day").dt.month() % 12) // 3).alias("season"))
 
-            consumption_cols = [col for col in df.columns if col.startswith("hh")]
+            consumption_cols = [col for col in df.collect_schema().names() if col.startswith("hh")]
             df = df.with_columns(
                 pl.concat_list(consumption_cols).alias("hh_consumption")
             )
@@ -126,7 +127,8 @@ class AcornData:
             result_frames.append(df)
 
         if result_frames:
-            return pl.concat(result_frames)
+            # Concatenate lazy frames and collect the result
+            return pl.concat(result_frames).collect()
         else:
             return pl.DataFrame(
                 schema={
@@ -138,6 +140,7 @@ class AcornData:
                     "hh_consumption": pl.List(pl.Float64),
                 }
             )
+
 
 if __name__ == "__main__":
     acorn_data = AcornData(acorn_group="Comfortable", selected_years=(2011, 2012))
