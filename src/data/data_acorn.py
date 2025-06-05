@@ -43,7 +43,7 @@ class AcornData:
 
         df = self._process_data()
         self.cache_manager.save_cache(df, cache_file)
-        return df
+        return self.cache_manager.load_cache(cache_file)
 
     def _process_data(self) -> pl.DataFrame:
         result_frames = []
