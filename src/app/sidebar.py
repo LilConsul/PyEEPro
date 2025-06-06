@@ -10,7 +10,9 @@ def get_acorn_categories():
 
 def get_temperature_bins():
     with st.spinner("Loading temperature bins..."):
-        temp_bins = sorted(storage.get_temperature_energy_patterns().get_column("temp_bin").unique())
+        temp_bins = sorted(
+            storage.get_temperature_energy_patterns().get_column("temp_bin").unique()
+        )
         return temp_bins
 
 
@@ -22,7 +24,9 @@ def render_sidebar():
             st.warning(
                 "Due to streamlit limitations, change tabs of filters to the same tab of data manually. For example, if you are viewing Time-Based Trends , change filters to the Time-Based tab of filters."
             )
-            subtab1, subtab2, subtab3 = st.tabs(["Time-Based", "Household", "Weather"])
+            subtab1, subtab2, subtab3, subtab4 = st.tabs(
+                ["Time-Based", "Household", "Weather", "Machine Learning"]
+            )
             with subtab1:
                 available_years = list(range(2011, 2015))
                 selected_years = st.multiselect(
@@ -51,27 +55,60 @@ def render_sidebar():
                 # Month filter
                 all_months = list(range(1, 13))
                 month_names = {
-                    1: "January", 2: "February", 3: "March", 4: "April",
-                    5: "May", 6: "June", 7: "July", 8: "August",
-                    9: "September", 10: "October", 11: "November", 12: "December"
+                    1: "January",
+                    2: "February",
+                    3: "March",
+                    4: "April",
+                    5: "May",
+                    6: "June",
+                    7: "July",
+                    8: "August",
+                    9: "September",
+                    10: "October",
+                    11: "November",
+                    12: "December",
                 }
 
                 selected_months = st.multiselect(
                     "Select Months",
                     options=all_months,
                     default=all_months,
-                    format_func=lambda x: month_names[x]
+                    format_func=lambda x: month_names[x],
                 )
 
                 # Temperature bin filter
                 temp_bins = get_temperature_bins()
                 selected_temp_bins = st.multiselect(
-                    "Select Temperature Ranges",
-                    options=temp_bins,
-                    default=temp_bins
+                    "Select Temperature Ranges", options=temp_bins, default=temp_bins
                 )
 
-                st.info("Temperature bins represent ranges of temperatures for easier analysis.")
+                st.info(
+                    "Temperature bins represent ranges of temperatures for easier analysis."
+                )
+
+            with subtab4:
+                st.subheader("Machine Learning Settings")
+
+                # Year selection (same as in time-based tab)
+                available_years = list(range(2011, 2015))
+                selected_years_ml = st.multiselect(
+                    "Select Years",
+                    available_years,
+                    default=list(range(2011, 2013)),
+                    key="ml_years",
+                )
+
+                # ACORN group selection
+                acorn_groups = ["Adversity", "Comfortable", "Affluent"]
+                selected_acorn_groups = st.selectbox(
+                    "Select ACORN Group",
+                    options=acorn_groups,
+                    index=1,  # Default to "Comfortable" (index 1)
+                    key="ml_acorn_groups",
+                )
+                st.info(
+                    "These settings control which models and features are used in the Machine Learning tab."
+                )
 
             if st.session_state.get("filters") is None:
                 st.session_state["filters"] = {}
@@ -81,6 +118,8 @@ def render_sidebar():
                 "acorn": selected_acorn,
                 "months": selected_months,
                 "temp_bins": selected_temp_bins,
+                "ml_years": selected_years_ml,
+                "ml_acorn_groups": selected_acorn_groups,
             }
 
         with tab2:
