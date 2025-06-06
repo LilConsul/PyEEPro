@@ -320,7 +320,8 @@ class AutoencoderTrainer:
         end_time = time.time()
         logging.info(f"Training completed in {end_time - start_time:.2f} seconds")
 
-        self.plot_training_history(losses, val_losses)
+
+        # self.plot_training_history(losses, val_losses)
 
         return self.model, losses
 
