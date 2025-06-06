@@ -76,8 +76,8 @@ def plot_random_example(processed_data, reconstructed_data, anomaly_threshold=0.
     # Update layout
     fig.update_layout(
         title=f"Autoencoder Reconstruction (Example #{idx})",
-        xaxis_title="Time",
-        yaxis_title="Energy Consumption",
+        xaxis_title="Time (half hour)",
+        yaxis_title="Energy Consumption (kWh)",
         height=400,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
