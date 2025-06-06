@@ -1,12 +1,17 @@
 # ⚡ Smart Meters in London – Energy Analytics Platform
 
-![Python](https://img.shields.io/badge/Python-3.13-blue.svg)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.45.1-red.svg)
-![Polars](https://img.shields.io/badge/Polars-1.30.0-yellow.svg)
-![Plotly](https://img.shields.io/badge/Plotly-6.1.2-purple.svg)
-![Matplotlib](https://img.shields.io/badge/Matplotlib-3.10.3-green.svg)
-![Seaborn](https://img.shields.io/badge/Seaborn-0.13.2-orange.svg)
-![Status](https://img.shields.io/badge/Status-Active-success.svg)
+<div align="center">
+
+[![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.45.1-red.svg)](https://streamlit.io/)
+[![Polars](https://img.shields.io/badge/Polars-1.30.0-yellow.svg)](https://pola.rs/)
+[![Plotly](https://img.shields.io/badge/Plotly-6.1.2-purple.svg)](https://plotly.com/python/)
+[![Matplotlib](https://img.shields.io/badge/Matplotlib-3.10.3-green.svg)](https://matplotlib.org/)
+[![Seaborn](https://img.shields.io/badge/Seaborn-0.13.2-orange.svg)](https://seaborn.pydata.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.7.0-orange.svg)](https://pytorch.org/)
+[![Status](https://img.shields.io/badge/Status-Active-success.svg)](https://github.com/LilConsul/PyEEPro)
+
+</div>
 
 ## 👨‍💻 Authors: Shevchenko Denys & Karabanov Yehor
 
@@ -18,6 +23,7 @@ This project delivers an interactive analytics dashboard for the **"Smart Meters
 - 👪 **Household consumption patterns** across different demographics
 - 🌦️ **Weather impact** on energy usage behavior
 - 📊 **Comparative analytics** for business intelligence
+- 🤖 **Machine Learning** to identify unusual consumption patterns oer households
 
 The findings are presented through an intuitive Streamlit web application with dynamic visualizations and detailed analytics.
 
@@ -81,6 +87,7 @@ PyEEPro/
 │   │   ├── tabs/                  # Dashboard tab components for different analyses
 │   │   └── utils/                 # UI utility functions and visualization helpers
 │   ├── data/                      # Data processing and management modules
+│   ├── ml/                        # Machine learning components
 │   ├── scripts/                   # Dataset handling scripts (validation, extraction)
 │   ├── main.py                    # Application entry point
 │   └── settings.py                # Application settings
@@ -114,6 +121,26 @@ The application is organized into three main interactive tabs:
   - Seasonal weather patterns and energy demand
   - Hourly temperature and usage relationships
 
+## 🤖 Machine Learning Anomaly Detection
+
+
+The platform includes an advanced anomaly detection system built with deep learning techniques to identify unusual energy consumption patterns in households:
+
+- **Autoencoder Architecture**: Implemented using PyTorch, neural network learn to encode and decode daily energy usage patterns, flagging significant deviations from expected consumption.
+- **Demographic Specialization**: Separate models trained for each ACORN demographic group improve detection accuracy by accounting for different lifestyle patterns across socioeconomic segments.
+- **Contextual Analysis**: Models incorporate temporal and environmental factors (day of week, season, temperature) to enhance anomaly detection precision.
+- **Unsupervised Learning**: The system identifies abnormal usage patterns without requiring pre-labeled data, making it adaptable to new households.
+
+The anomaly detection system enables:
+- Real-time monitoring of household energy consumption
+- Early detection of potential appliance faults or unusual behavior
+- Personalized insights based on household demographics
+- Data-driven optimization recommendations for energy usage
+
+![Machine Learning Plot Example](img/ml_plot_dark.png)
+
+This machine learning approach provides utility companies, researchers, and consumers with sophisticated tools to analyze and improve energy consumption efficiency in a personalized manner.
+
 ## 🔧 Performance Optimization
 
 The application uses several strategies to maintain performance with large datasets:
@@ -125,4 +152,3 @@ The application uses several strategies to maintain performance with large datas
 ## 📝 License
 
 This project is licensed under the MIT License.
-
