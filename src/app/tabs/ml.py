@@ -73,13 +73,25 @@ def plot_random_example(processed_data, reconstructed_data, anomaly_threshold=0.
         )
     )
 
+    # Create time labels for x-axis (48 half-hour intervals in a day)
+    time_labels = []
+    for i in range(48):
+        hour = i // 2
+        minute = (i % 2) * 30
+        time_labels.append(f"{hour:02d}:{minute:02d}")
+
     # Update layout
     fig.update_layout(
         title=f"Autoencoder Reconstruction (Example #{idx})",
-        xaxis_title="Time (half hour)",
+        xaxis_title="Time of day",
         yaxis_title="Energy Consumption (kWh)",
         height=400,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(
+            tickmode='array',
+            tickvals=list(range(len(original))),
+            ticktext=time_labels[:len(original)] if len(original) <= 48 else time_labels
+        )
     )
 
     return fig
