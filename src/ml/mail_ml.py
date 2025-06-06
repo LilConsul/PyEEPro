@@ -3,8 +3,8 @@ import time
 import logging
 from typing import Tuple, Optional
 from data.data_acorn import AcornData
-from ml_data_processor import DataProcessor
-from trainer import AutoencoderTrainer
+from .ml_data_processor import DataProcessor
+from .trainer import AutoencoderTrainer
 
 # Configure backend for performance
 torch.backends.cudnn.benchmark = True

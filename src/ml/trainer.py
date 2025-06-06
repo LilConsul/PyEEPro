@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 import torch.amp as amp
 from typing import Tuple, Optional, List, Dict, Any
 from settings import settings
-from system_resource_manager import SystemResourceManager
-from ml_data_processor import DataProcessor
-from model import AutoencoderModel
+from .system_resource_manager import SystemResourceManager
+from .ml_data_processor import DataProcessor
+from .model import AutoencoderModel
 
 
 class AutoencoderTrainer:
