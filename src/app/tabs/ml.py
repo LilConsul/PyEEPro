@@ -1,6 +1,7 @@
 import streamlit as st
 import plotly.graph_objects as go
 import random
+import numpy as np
 
 
 # Lazy import function to prevent PyTorch loading during Streamlit's module scanning
@@ -11,13 +12,15 @@ def import_ml_modules():
     return AutoencoderPipeline
 
 
-def plot_random_example(processed_data, reconstructed_data):
+def plot_random_example(processed_data, reconstructed_data, anomaly_threshold=0.1):
     """
-    Plot a random example from the processed and reconstructed data
+    Plot a random example from the processed and reconstructed data,
+    highlighting anomalies with a yellow background where data differs significantly.
 
     Args:
         processed_data: Original processed data
         reconstructed_data: Reconstructed data from the autoencoder
+        anomaly_threshold: Threshold for marking differences as anomalies
     """
     # Get a random index
     if "current_example_index" not in st.session_state:
@@ -30,10 +33,30 @@ def plot_random_example(processed_data, reconstructed_data):
     # Create a combined plot of original and reconstructed data
     fig = go.Figure()
 
+    # Get the data for this example
+    original = processed_data[idx].flatten()
+    reconstructed = reconstructed_data[idx].flatten()
+
+    # Calculate the differences
+    differences = np.abs(original - reconstructed)
+    anomaly_mask = differences > anomaly_threshold
+
+    # Add yellow rectangles for anomaly regions
+    for i in range(len(anomaly_mask)):
+        if anomaly_mask[i]:
+            fig.add_vrect(
+                x0=i - 0.5,
+                x1=i + 0.5,
+                fillcolor="yellow",
+                opacity=0.3,
+                layer="below",
+                line_width=0,
+            )
+
     # Add the original data trace
     fig.add_trace(
         go.Scatter(
-            y=processed_data[idx].flatten(),
+            y=original,
             mode="lines",
             name="Original Data",
             line=dict(color="blue"),
@@ -43,7 +66,7 @@ def plot_random_example(processed_data, reconstructed_data):
     # Add the reconstructed data trace
     fig.add_trace(
         go.Scatter(
-            y=reconstructed_data[idx].flatten(),
+            y=reconstructed,
             mode="lines",
             name="Reconstructed Data",
             line=dict(color="red"),
@@ -133,7 +156,11 @@ def render_model_training_section():
         st.markdown("### Configuration Summary")
 
         # Format the selected years for display
-        years_display = ", ".join(map(str, sorted(selected_years_ml))) if selected_years_ml else "None selected"
+        years_display = (
+            ", ".join(map(str, sorted(selected_years_ml)))
+            if selected_years_ml
+            else "None selected"
+        )
 
         st.markdown(
             f"""
@@ -200,8 +227,18 @@ def render_model_training_section():
         processed_data = st.session_state["processed_data"]
         reconstructed_data = st.session_state["reconstructed_data"]
 
+        # Add anomaly threshold slider
+        anomaly_threshold = st.slider(
+            "Anomaly Detection Threshold",
+            min_value=0.01,
+            max_value=0.5,
+            value=0.1,
+            step=0.01,
+            help="Set the threshold for marking anomalies. Higher values will highlight only larger differences.",
+        )
+
         # Display the random example plot
-        fig = plot_random_example(processed_data, reconstructed_data)
+        fig = plot_random_example(processed_data, reconstructed_data, anomaly_threshold)
         st.plotly_chart(fig, use_container_width=True)
 
         # Add a button to show another random example
