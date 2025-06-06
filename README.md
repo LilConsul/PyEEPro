@@ -149,6 +149,19 @@ The application uses several strategies to maintain performance with large datas
 - **Polars Dataframes**: Lightning-fast data processing through Rust-powered Polars
 - **Selective Data Loading**: Only the necessary data is loaded based on user selections
 
+## 📚 Documentation
+
+For a comprehensive analysis of the findings from this project, please refer to our detailed report:
+
+- [**Full Analysis Report**](docs/REPORT.md) - An in-depth exploration of all insights discovered through our analysis including:
+  - Time-based consumption trend analysis with hourly, daily, weekly, and seasonal patterns
+  - Household behavior analysis across different tariff types and demographic groups
+  - Weather impact assessment showing temperature correlations with energy usage
+  - Hidden business insights with monetization opportunities
+  - Machine learning approach for anomaly detection in household energy consumption
+
+The report includes visualizations and detailed explanations of key observations for each analysis category.
+
 ## 📝 License
 
 This project is licensed under the MIT License.
