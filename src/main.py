@@ -1,6 +1,6 @@
 import streamlit as st
 from app.sidebar import render_sidebar
-from app.tabs import render_household_tab, render_weather_tab, render_time_based_tab
+from app.tabs import render_household_tab, render_weather_tab, render_time_based_tab, render_ml_tab
 from scripts import handle_dataset_availability
 
 
@@ -42,8 +42,8 @@ def render_app_content():
     render_sidebar()
 
     # st.header("📊 Exploratory Data Analysis")
-    time_based_tab, household_tab, weather_tab = st.tabs(
-        ["📈 Time-based trends", "📊 Household behavior", "📉 Weather impact"]
+    time_based_tab, household_tab, weather_tab, ml_tab = st.tabs(
+        ["📈 Time-based trends", "📊 Household behavior", "📉 Weather impact", "🤖 Machine Learning"]
     )
 
     with time_based_tab:
@@ -54,6 +54,9 @@ def render_app_content():
 
     with weather_tab:
         render_weather_tab()
+
+    with ml_tab:
+        render_ml_tab()
 
 
 def main():
