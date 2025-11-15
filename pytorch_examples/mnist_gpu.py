@@ -1,8 +1,3 @@
-"""
-Simple MNIST Digit Recognition with PyTorch
-A complete example of training a CNN to recognize handwritten digits 0-9
-"""
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -14,33 +9,19 @@ import time
 
 
 class SimpleCNN(nn.Module):
-    """Simple Convolutional Neural Network for MNIST digit recognition"""
-
     def __init__(self):
         super(SimpleCNN, self).__init__()
-        # Convolutional layers
         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-
-        # Pooling layer
         self.pool = nn.MaxPool2d(2, 2)
-
-        # Fully connected layers
         self.fc1 = nn.Linear(64 * 7 * 7, 128)
         self.fc2 = nn.Linear(128, 10)
-
-        # Dropout for regularization
         self.dropout = nn.Dropout(0.25)
 
     def forward(self, x):
-        # Convolutional layers with ReLU and pooling
         x = self.pool(torch.relu(self.conv1(x)))
         x = self.pool(torch.relu(self.conv2(x)))
-
-        # Flatten for fully connected layers
         x = x.view(-1, 64 * 7 * 7)
-
-        # Fully connected layers
         x = torch.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
@@ -48,14 +29,11 @@ class SimpleCNN(nn.Module):
 
 
 def load_data():
-    """Load and preprocess MNIST dataset"""
-    # Define transformations
     transform = transforms.Compose([
-        transforms.ToTensor(),  # Convert to tensor
-        transforms.Normalize((0.1307,), (0.3081,))  # Normalize with MNIST mean/std
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
     ])
 
-    # Load datasets
     train_dataset = datasets.MNIST(
         root='./mnist_data',
         train=True,
@@ -70,33 +48,32 @@ def load_data():
         transform=transform
     )
 
-    # Create data loaders
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+    # GPU: Larger batch size and pin_memory for faster GPU transfers
+    batch_size = 128 if torch.cuda.is_available() else 64
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                            pin_memory=torch.cuda.is_available())
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
+                           pin_memory=torch.cuda.is_available())
 
     return train_loader, test_loader
 
 
-def train_model(model, train_loader, criterion, optimizer, epochs=5):
-    """Train the neural network"""
+def train_model(model, train_loader, criterion, optimizer, device, epochs=5):
     model.train()
     for epoch in range(epochs):
         running_loss = 0.0
         for batch_idx, (images, labels) in enumerate(train_loader):
-            # Zero gradients
-            optimizer.zero_grad()
+            # GPU: Move data to device
+            images, labels = images.to(device), labels.to(device)
 
-            # Forward pass
+            optimizer.zero_grad()
             outputs = model(images)
             loss = criterion(outputs, labels)
-
-            # Backward pass and optimize
             loss.backward()
             optimizer.step()
 
             running_loss += loss.item()
 
-            # Print progress every 100 batches
             if (batch_idx + 1) % 100 == 0:
                 print(f'Epoch {epoch+1}, Batch {batch_idx+1}, Loss: {running_loss/100:.4f}')
                 running_loss = 0.0
@@ -104,14 +81,16 @@ def train_model(model, train_loader, criterion, optimizer, epochs=5):
         print(f'Epoch {epoch+1} completed')
 
 
-def evaluate_model(model, test_loader):
-    """Evaluate model performance on test set"""
+def evaluate_model(model, test_loader, device):
     model.eval()
     correct = 0
     total = 0
 
     with torch.no_grad():
         for images, labels in test_loader:
+            # GPU: Move data to device
+            images, labels = images.to(device), labels.to(device)
+
             outputs = model(images)
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
@@ -122,20 +101,19 @@ def evaluate_model(model, test_loader):
     return accuracy
 
 
-def predict_digit(model, image):
-    """Predict a single digit from an image"""
+def predict_digit(model, image, device):
     model.eval()
     with torch.no_grad():
-        output = model(image.unsqueeze(0))  # Add batch dimension
+        # GPU: Move image to device
+        image = image.to(device)
+        output = model(image.unsqueeze(0))
         _, predicted = torch.max(output, 1)
         return predicted.item()
 
 
-def visualize_predictions(model, test_dataset, num_images=10):
-    """Visualize model predictions on test images"""
+def visualize_predictions(model, test_dataset, device, num_images=10):
     model.eval()
 
-    # Get random test images
     indices = np.random.choice(len(test_dataset), num_images, replace=False)
 
     fig, axes = plt.subplots(2, 5, figsize=(12, 6))
@@ -144,11 +122,10 @@ def visualize_predictions(model, test_dataset, num_images=10):
     with torch.no_grad():
         for i, idx in enumerate(indices):
             image, label = test_dataset[idx]
-            predicted = predict_digit(model, image)
+            predicted = predict_digit(model, image, device)
 
-            # Denormalize for display
             image_display = image.squeeze().numpy()
-            image_display = image_display * 0.3081 + 0.1307  # Denormalize
+            image_display = image_display * 0.3081 + 0.1307
 
             axes[i].imshow(image_display, cmap='gray')
             axes[i].set_title(f'Pred: {predicted}, True: {label}')
@@ -159,25 +136,30 @@ def visualize_predictions(model, test_dataset, num_images=10):
 
 
 def main():
-    """Main function to run the MNIST digit recognition example"""
+    # GPU: Set up device (CUDA if available, else CPU)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
+
     print("Loading MNIST dataset...")
     train_loader, test_loader = load_data()
 
     print("Creating model...")
     model = SimpleCNN()
+    # GPU: Move model to device
+    model.to(device)
 
     print("Setting up loss and optimizer...")
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     print("Training model...")
-    train_model(model, train_loader, criterion, optimizer, epochs=5)
+    train_model(model, train_loader, criterion, optimizer, device, epochs=5)
 
     print("Evaluating model...")
-    accuracy = evaluate_model(model, test_loader)
+    accuracy = evaluate_model(model, test_loader, device)
 
     print("Visualizing predictions...")
-    visualize_predictions(model, test_loader.dataset)
+    visualize_predictions(model, test_loader.dataset, device)
 
     print("Saving model...")
     torch.save(model.state_dict(), 'mnist_model.pth')
@@ -187,16 +169,20 @@ def main():
 
 
 if __name__ == "__main__":
-    # Set random seed for reproducibility
     torch.manual_seed(42)
     np.random.seed(42)
 
+    # GPU: Enable cuDNN benchmark for optimized performance
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
+
     start_time = time.time()
-    # Run the example
+
     model, accuracy = main()
 
     end_time = time.time()
     print(f"Total training time: {end_time - start_time:.2f} seconds")
+
     print("Example completed!")
-    print(".2f")
+    print(f"Final accuracy: {accuracy:.2f}%")
     print("You can now use this model to recognize handwritten digits!")
