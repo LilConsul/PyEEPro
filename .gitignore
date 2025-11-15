@@ -2,6 +2,7 @@
 tmp/*
 data/*
 !data/*.md
+mnist_data
 
 *.log
 .idea
