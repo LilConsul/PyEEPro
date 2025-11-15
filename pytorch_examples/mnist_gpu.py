@@ -5,7 +5,6 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import numpy as np
-import time
 
 
 class SimpleCNN(nn.Module):
@@ -29,31 +28,32 @@ class SimpleCNN(nn.Module):
 
 
 def load_data():
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
-    ])
+    transform = transforms.Compose(
+        [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+    )
 
     train_dataset = datasets.MNIST(
-        root='./mnist_data',
-        train=True,
-        download=True,
-        transform=transform
+        root="./mnist_data", train=True, download=True, transform=transform
     )
 
     test_dataset = datasets.MNIST(
-        root='./mnist_data',
-        train=False,
-        download=True,
-        transform=transform
+        root="./mnist_data", train=False, download=True, transform=transform
     )
 
     # GPU: Larger batch size and pin_memory for faster GPU transfers
     batch_size = 128 if torch.cuda.is_available() else 64
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
-                            pin_memory=torch.cuda.is_available())
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
-                           pin_memory=torch.cuda.is_available())
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        pin_memory=torch.cuda.is_available(),
+    )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        pin_memory=torch.cuda.is_available(),
+    )
 
     return train_loader, test_loader
 
@@ -75,10 +75,12 @@ def train_model(model, train_loader, criterion, optimizer, device, epochs=5):
             running_loss += loss.item()
 
             if (batch_idx + 1) % 100 == 0:
-                print(f'Epoch {epoch+1}, Batch {batch_idx+1}, Loss: {running_loss/100:.4f}')
+                print(
+                    f"Epoch {epoch + 1}, Batch {batch_idx + 1}, Loss: {running_loss / 100:.4f}"
+                )
                 running_loss = 0.0
 
-        print(f'Epoch {epoch+1} completed')
+        print(f"Epoch {epoch + 1} completed")
 
 
 def evaluate_model(model, test_loader, device):
@@ -97,7 +99,7 @@ def evaluate_model(model, test_loader, device):
             correct += (predicted == labels).sum().item()
 
     accuracy = 100 * correct / total
-    print(f'Accuracy on test set: {accuracy:.2f}%')
+    print(f"Accuracy on test set: {accuracy:.2f}%")
     return accuracy
 
 
@@ -127,9 +129,9 @@ def visualize_predictions(model, test_dataset, device, num_images=10):
             image_display = image.squeeze().numpy()
             image_display = image_display * 0.3081 + 0.1307
 
-            axes[i].imshow(image_display, cmap='gray')
-            axes[i].set_title(f'Pred: {predicted}, True: {label}')
-            axes[i].axis('off')
+            axes[i].imshow(image_display, cmap="gray")
+            axes[i].set_title(f"Pred: {predicted}, True: {label}")
+            axes[i].axis("off")
 
     plt.tight_layout()
     plt.show()
@@ -137,7 +139,7 @@ def visualize_predictions(model, test_dataset, device, num_images=10):
 
 def main():
     # GPU: Set up device (CUDA if available, else CPU)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     print("Loading MNIST dataset...")
@@ -162,7 +164,7 @@ def main():
     visualize_predictions(model, test_loader.dataset, device)
 
     print("Saving model...")
-    torch.save(model.state_dict(), 'mnist_model.pth')
+    torch.save(model.state_dict(), "mnist_model.pth")
     print("Model saved as 'mnist_model.pth'")
 
     return model, accuracy
@@ -176,12 +178,7 @@ if __name__ == "__main__":
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
 
-    start_time = time.time()
-
     model, accuracy = main()
-
-    end_time = time.time()
-    print(f"Total training time: {end_time - start_time:.2f} seconds")
 
     print("Example completed!")
     print(f"Final accuracy: {accuracy:.2f}%")

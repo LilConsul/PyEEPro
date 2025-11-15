@@ -10,7 +10,6 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import numpy as np
-import time
 
 
 class SimpleCNN(nn.Module):
@@ -50,24 +49,20 @@ class SimpleCNN(nn.Module):
 def load_data():
     """Load and preprocess MNIST dataset"""
     # Define transformations
-    transform = transforms.Compose([
-        transforms.ToTensor(),  # Convert to tensor
-        transforms.Normalize((0.1307,), (0.3081,))  # Normalize with MNIST mean/std
-    ])
+    transform = transforms.Compose(
+        [
+            transforms.ToTensor(),  # Convert to tensor
+            transforms.Normalize((0.1307,), (0.3081,)),  # Normalize with MNIST mean/std
+        ]
+    )
 
     # Load datasets
     train_dataset = datasets.MNIST(
-        root='./mnist_data',
-        train=True,
-        download=True,
-        transform=transform
+        root="./mnist_data", train=True, download=True, transform=transform
     )
 
     test_dataset = datasets.MNIST(
-        root='./mnist_data',
-        train=False,
-        download=True,
-        transform=transform
+        root="./mnist_data", train=False, download=True, transform=transform
     )
 
     # Create data loaders
@@ -98,10 +93,12 @@ def train_model(model, train_loader, criterion, optimizer, epochs=5):
 
             # Print progress every 100 batches
             if (batch_idx + 1) % 100 == 0:
-                print(f'Epoch {epoch+1}, Batch {batch_idx+1}, Loss: {running_loss/100:.4f}')
+                print(
+                    f"Epoch {epoch + 1}, Batch {batch_idx + 1}, Loss: {running_loss / 100:.4f}"
+                )
                 running_loss = 0.0
 
-        print(f'Epoch {epoch+1} completed')
+        print(f"Epoch {epoch + 1} completed")
 
 
 def evaluate_model(model, test_loader):
@@ -118,7 +115,7 @@ def evaluate_model(model, test_loader):
             correct += (predicted == labels).sum().item()
 
     accuracy = 100 * correct / total
-    print(f'Accuracy on test set: {accuracy:.2f}%')
+    print(f"Accuracy on test set: {accuracy:.2f}%")
     return accuracy
 
 
@@ -150,9 +147,9 @@ def visualize_predictions(model, test_dataset, num_images=10):
             image_display = image.squeeze().numpy()
             image_display = image_display * 0.3081 + 0.1307  # Denormalize
 
-            axes[i].imshow(image_display, cmap='gray')
-            axes[i].set_title(f'Pred: {predicted}, True: {label}')
-            axes[i].axis('off')
+            axes[i].imshow(image_display, cmap="gray")
+            axes[i].set_title(f"Pred: {predicted}, True: {label}")
+            axes[i].axis("off")
 
     plt.tight_layout()
     plt.show()
@@ -180,7 +177,7 @@ def main():
     visualize_predictions(model, test_loader.dataset)
 
     print("Saving model...")
-    torch.save(model.state_dict(), 'mnist_model.pth')
+    torch.save(model.state_dict(), "mnist_model.pth")
     print("Model saved as 'mnist_model.pth'")
 
     return model, accuracy
@@ -191,12 +188,9 @@ if __name__ == "__main__":
     torch.manual_seed(42)
     np.random.seed(42)
 
-    start_time = time.time()
     # Run the example
     model, accuracy = main()
 
-    end_time = time.time()
-    print(f"Total training time: {end_time - start_time:.2f} seconds")
     print("Example completed!")
     print(".2f")
     print("You can now use this model to recognize handwritten digits!")
