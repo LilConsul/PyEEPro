@@ -185,8 +185,8 @@ def main():
 
 if __name__ == "__main__":
     # Set random seed for reproducibility
-    torch.manual_seed(42)
-    np.random.seed(42)
+    torch.manual_seed(69)
+    np.random.seed(69)
 
     # Run the example
     model, accuracy = main()
