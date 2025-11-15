@@ -59,28 +59,32 @@
 
 ### 2.3 Development Workflow
 
-```python
-# Typical PyTorch workflow
-1.
-Define
-model
-architecture(nn.Module)
-2.
-Prepare
-data(DataLoader)
-3.
-Define
-loss
-function and optimizer
-4.
-Training
-loop(forward, backward, optimize)
-5.
-Evaluation and inference
-6.
-Model
-serialization
-```
+**Typical PyTorch Pipeline**:
+
+1. **Define Model Architecture**
+   - Create custom `nn.Module` class
+   - Specify layers and forward pass logic
+
+2. **Prepare Data**
+   - Implement `Dataset` class for data loading
+   - Create `DataLoader` for batching and shuffling
+
+3. **Configure Training**
+   - Define loss function (e.g., `nn.MSELoss`, `nn.CrossEntropyLoss`)
+   - Choose optimizer (e.g., `Adam`, `SGD`)
+
+4. **Training Loop**
+   - Forward pass: compute predictions
+   - Backward pass: compute gradients
+   - Optimize: update model parameters
+
+5. **Evaluation and Inference**
+   - Test on validation/test data
+   - Deploy model for predictions
+
+6. **Model Serialization**
+   - Save trained model weights
+   - Load model for future use
 
 ### 2.4 Supporting Ecosystem
 
